@@ -700,17 +700,26 @@ function updateTodayBanner(y, m, d, isHover=false){
 }
 
 function resetBanner(){
+  _pinnedCol={y:null,m:null,d:null};
+  highlightCol(null,null,null);
   updateTodayBanner();
 }
 
 // 호버/탭 으로 배너 날짜 업데이트 + 열 하이라이트
 let _bannerResetTimer=null;
+let _pinnedCol={y:null,m:null,d:null}; // 마지막 고정 날짜
 
 function highlightCol(y,m,d){
-  // 기존 하이라이트 제거
   document.querySelectorAll('.col-hover').forEach(el=>el.classList.remove('col-hover'));
-  if(y===null) return;
-  // 해당 날짜의 th, td 모두 하이라이트
+  // null이면 핀 위치로 복원
+  if(y===null){
+    if(_pinnedCol.y!==null){
+      document.querySelectorAll(`[data-y="${_pinnedCol.y}"][data-m="${_pinnedCol.m}"][data-d="${_pinnedCol.d}"]`).forEach(el=>el.classList.add('col-hover'));
+    }
+    return;
+  }
+  // 새 날짜 핀 저장
+  _pinnedCol={y,m,d};
   document.querySelectorAll(`[data-y="${y}"][data-m="${m}"][data-d="${d}"]`).forEach(el=>el.classList.add('col-hover'));
 }
 
@@ -957,6 +966,7 @@ function render(){
 }
 
 function scrollToToday(){
+  _pinnedCol={y:null,m:null,d:null}; // 오늘로 이동 시 핀 초기화
   requestAnimationFrame(()=>{
     const tc=document.querySelector('.today-ring');
     if(tc){const se=tc.closest('.cal-scroll');if(se){const cr=tc.getBoundingClientRect(),sr=se.getBoundingClientRect();se.scrollBy({left:cr.left-sr.left-sr.width*0.25,behavior:'smooth'});}}
