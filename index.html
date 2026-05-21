@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4f6fb">
+<title>HANA STAY · 예약현황</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f6fb; --surface: #ffffff; --surface2: #eef0f6;
+  --border: rgba(0,0,0,0.07); --border2: rgba(0,0,0,0.13);
+  --text: #1a2340; --text2: #5a6480; --text3: #9aa0b4;
+  --navy: #1e3a8a; --navy2: #2952cc; --navy-light: rgba(30,58,138,0.08);
+  --ab-out: #e5503a; --ab-in: #22a06b; --ab-stay: rgba(229,80,58,0.07);
+  --bk-out: #1a6fcc; --bk-in: #3a9fd8; --bk-stay: rgba(26,111,204,0.07);
+  --tr-out: #e5503a; --tr-in: #1d9460; --tr-stay: rgba(74,18,120,0.15);
+  --lv-out: #0a6e8a; --lv-in: #a855f7; --lv-stay: rgba(124,58,237,0.07);
+  --bl-color: #374151; --bl-stay: rgba(55,65,81,0.10);
+  --ob-color: #dc2626; --ob-bg: rgba(220,38,38,0.10);
+  --r: 8px; --r2: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+input, textarea, select { user-select: text; -webkit-user-select: text; }
+html { background: var(--bg); }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.app-header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(244,246,251,0.96); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border2); padding: 14px 16px 10px;
+}
+.header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.app-title { font-size: 16px; font-weight: 600; letter-spacing: 0.04em; color: var(--navy); }
+.app-title span { color: var(--navy2); }
+.app-subtitle { font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; font-family: 'DM Mono', monospace; margin-top: 2px; }
+.header-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: var(--r);
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--text2); font-size: 14px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.icon-btn:active { transform: scale(0.94); background: var(--surface2); }
+.nav-row { display: flex; align-items: center; justify-content: space-between; }
+.month-display { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; min-width: 96px; text-align: center; color: var(--text); }
+.nav-arrow {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 14px; transition: all 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.nav-arrow:active { background: var(--surface2); transform: scale(0.9); }
+.view-tabs { display: flex; background: var(--surface2); border-radius: 20px; padding: 2px; border: 1px solid var(--border); }
+.view-tab { padding: 4px 12px; border-radius: 18px; font-size: 12px; cursor: pointer; color: var(--text2); border: none; background: none; font-family: 'DM Sans', sans-serif; transition: all 0.2s; }
+.view-tab.active { background: var(--navy); color: #fff; font-weight: 500; }
+
+.today-banner {
+  position: sticky; top: var(--header-h, 89px); z-index: 90;
+  margin: 0; background: #ffffff;
+  border-bottom: 1px solid var(--border2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.today-date { font-size: 13px; color: var(--text2); }
+.today-date strong { color: var(--navy); font-weight: 600; font-family: 'DM Mono', monospace; }
+.today-counts { display: flex; gap: 16px; }
+.today-count { text-align: right; }
+.today-count .num { font-size: 22px; font-weight: 600; font-family: 'DM Mono', monospace; line-height: 1; }
+.today-count .lbl { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.num.out { color: var(--ab-out); } .num.inc { color: var(--ab-in); }
+
+.main { padding: 12px 16px 100px; }
+.sync-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0 12px; }
+.sync-time { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; }
+.sync-btn {
+  display: flex; align-items: center; gap: 5px; padding: 6px 14px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--navy); border-radius: 20px; background: var(--navy-light); color: var(--navy);
+  cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+}
+.sync-btn:active { background: var(--navy); color: #fff; }
+.sync-btn-fixed {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--navy); background: var(--navy); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 16px; transition: all 0.15s;
+  flex-shrink: 0;
+}
+.sync-btn-fixed:active { opacity: 0.8; transform: scale(0.92); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+.ob-alerts-wrap {
+  position: sticky; top: var(--banner-bottom, 133px); z-index: 89;
+  background: rgba(244,246,251,0.97);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.ob-alert {
+  background: var(--ob-bg); border-bottom: 1px solid rgba(220,38,38,0.2);
+  padding: 8px 16px;
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.ob-alert-text { font-size: 12px; color: var(--ob-color); line-height: 1.6; font-weight: 500; }
+
+.cal-scroll {
+  overflow-x: auto; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -16px; padding: 0 16px;
+  max-height: calc(100vh - var(--banner-bottom, 133px) - 80px);
+}
+.cal-table { border-collapse: collapse; font-size: 11px; touch-action: pan-x pan-y; }
+.cal-table * { user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none !important; }
+.room-th {
+  font-size: 11px; font-weight: 500; color: var(--text2);
+  padding: 0 10px 0 0; white-space: nowrap; min-width: 62px; height: 36px;
+  position: sticky; left: 0; background: var(--bg); z-index: 5;
+}
+.room-th-inner { display: flex; align-items: center; gap: 5px; }
+.room-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* 날짜 헤더: 세로 스크롤해도 항상 상단 고정 */
+thead { position: sticky; top: 0; z-index: 10; }
+
+.day-th {
+  min-width: 36px; font-size: 10px; color: var(--text3);
+  text-align: center; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border2);
+  font-family: 'DM Mono', monospace;
+  background: var(--bg);
+  position: sticky; top: 0;
+}
+.day-th.sun { color: #dc2626; } .day-th.sat { color: var(--bk-out); }
+.day-th.today-hd { color: var(--navy); font-weight: 600; }
+.day-th .dname { font-size: 9px; opacity: 0.7; }
+.cell-inner {
+  width: 100%; height: 100%; border-radius: 5px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px; font-size: 9px; font-weight: 600; position: relative; line-height: 1;
+}
+.cell-icon { font-size: 9px; line-height: 1; display: block; pointer-events: none; }
+.cell-txt { font-size: 8px; font-weight: 700; line-height: 1; display: block; pointer-events: none; }
+
+/* 예약 셀: 어두운 회색 배경, 밝기 적당한 컬러 */
+.day-cell { min-width: 36px; width: 36px; height: 36px; padding: 2px; cursor: pointer; background: #22252e; }
+.day-cell:active .cell-inner { filter: brightness(1.15); }
+.c-empty { background: transparent; }
+.day-cell .cell-inner { border: 1px solid rgba(255,255,255,0.08); }
+.day-cell .c-empty   { border-color: rgba(255,255,255,0.1); }
+/* 체크아웃/인 공통 색상 (에어비앤비 기준) — 숙박중/1박(both)은 플랫폼별 */
+/* Airbnb */
+.c-occupied  { background: #b85c00; border-color: transparent !important; }
+.c-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
+.c-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); color: #fff; border-color: transparent !important; }
+/* Booking.com */
+.c-bk-occupied { background: #1a3f7a; border-color: transparent !important; }
+.c-bk-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-bk-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
+.c-bk-both      { background: #1a3f7a; color: #fff; border-color: transparent !important; }
+/* Trip.com */
+.c-tr-occupied { background: #4a1278; border-color: transparent !important; }
+.c-tr-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-tr-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
+.c-tr-both      { background: #4a1278; color: #fff; border-color: transparent !important; }
+/* 리브애니웨어 */
+.c-lv-occupied { background: #0a6e8a; border-color: transparent !important; }
+.c-lv-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-lv-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
+.c-lv-both      { background: #0a6e8a; color: #fff; border-color: transparent !important; }
+/* 블락 */
+.c-bl-occupied { background: #2d333d; border-color: transparent !important; }
+.c-bl-block    { background: #3d4452; color: #c0c8d8; border-color: transparent !important; }
+/* 오버부킹 */
+.c-overbooking { background: #b91c1c; outline: 2px solid #f87171; outline-offset: -2px; border-radius: 5px; border-color: transparent !important; }
+/* 복합 */
+.c-dual { background: linear-gradient(180deg,#8b2e1e 50%,#1a3f7a 50%); border-color: transparent !important; }
+/* 오늘 링: 밝은 하늘색으로 잘 보이게 */
+.today-ring .cell-inner { outline: 2px solid #38bdf8; outline-offset: -2px; border-radius: 5px; }
+.cal-row { border-bottom: 1px solid var(--border); }
+
+.week-block { margin-bottom: 20px; }
+.week-label { font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border2); }
+.checkout-cards { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.checkout-card { background: rgba(229,80,58,0.08); border: 1px solid rgba(229,80,58,0.25); border-radius: var(--r); padding: 6px 10px; font-size: 11px; }
+.checkout-card strong { color: var(--ab-out); font-weight: 600; }
+.checkout-card span { color: var(--text2); }
+
+.multi-month-label { font-size: 11px; color: var(--navy); font-family: 'DM Mono', monospace; font-weight: 600; padding: 0 6px 6px; white-space: nowrap; border-bottom: 1px solid var(--border2); border-left: 2px solid var(--navy); background: var(--bg); }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 13px; line-height: 1.8; }
+.empty-state .big { font-size: 28px; margin-bottom: 10px; }
+.empty-state strong { color: var(--text2); font-weight: 500; }
+
+.legend-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: rgba(244,246,251,0.97); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border2); padding: 10px 16px 22px;
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text3); pointer-events: none; }
+.legend-box { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.legend-today { width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--navy); }
+.legend-sep { width: 1px; height: 12px; background: var(--border2); flex-shrink: 0; }
+
+.panel-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: none; align-items: flex-end; }
+.panel-overlay.open { display: flex; }
+.panel-sheet { width: 100%; max-height: 90vh; background: var(--surface); border-radius: 20px 20px 0 0; border-top: 1px solid var(--border2); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 -4px 24px rgba(0,0,0,0.12); }
+.sheet-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.sheet-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.sheet-close { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface2); color: var(--text2); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; }
+.sheet-body { overflow-y: auto; padding: 16px; flex: 1; }
+.sheet-section { margin-bottom: 24px; }
+.sheet-section-title { font-size: 11px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; font-family: 'DM Mono', monospace; }
+
+.ical-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.ical-input { width: 100%; padding: 10px 12px; font-size: 13px; background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r); color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; }
+.ical-input::placeholder { color: var(--text3); }
+.ical-input:focus { border-color: var(--navy); }
+.add-btn { width: 100%; padding: 10px; font-size: 13px; font-weight: 600; background: var(--navy); color: #fff; border: none; border-radius: var(--r); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.add-btn:active { opacity: 0.8; }
+.ical-hint { font-size: 11px; color: var(--text3); line-height: 1.8; }
+
+.room-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 6px; }
+.room-item.dragging { opacity: 0.4; }
+.room-item.drag-over { border-color: var(--navy) !important; background: var(--navy-light) !important; }
+.room-item-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.room-item-info { flex: 1; min-width: 0; }
+.room-item-name { font-size: 13px; font-weight: 500; }
+.room-item-url { font-size: 10px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-pill { font-size: 10px; padding: 2px 7px; border-radius: 20px; background: rgba(34,160,107,0.12); color: var(--ab-in); border: 1px solid rgba(34,160,107,0.3); }
+.drag-handle { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: grab; color: var(--text3); font-size: 13px; flex-shrink: 0; touch-action: none; }
+.reorder-hint { font-size: 11px; color: var(--text3); text-align: center; padding: 6px 0 2px; }
+.room-edit-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.room-del { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.room-del:active { background: rgba(220,38,38,0.1); color: #dc2626; }
+.room-edit-form { background: var(--bg); border: 1px solid var(--navy); border-radius: var(--r); padding: 12px; margin-bottom: 6px; display: flex; flex-direction: column; gap: 8px; }
+.room-edit-form .ical-input { font-size: 12px; padding: 8px 10px; }
+.room-edit-actions { display: flex; gap: 7px; }
+.room-edit-save { flex: 1; padding: 8px; font-size: 12px; font-weight: 600; background: var(--navy); color: #fff; border: none; border-radius: var(--r); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.room-edit-cancel { padding: 8px 14px; font-size: 12px; background: none; border: 1px solid var(--border2); border-radius: var(--r); color: var(--text2); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+.export-url-box { background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r); padding: 10px 12px; margin-bottom: 8px; }
+.export-url-label { font-size: 11px; color: var(--text2); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.export-url-text { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; word-break: break-all; line-height: 1.5; margin-bottom: 8px; }
+.copy-btn { padding: 6px 14px; font-size: 11px; font-weight: 500; background: var(--surface); color: var(--navy); border: 1px solid var(--navy); border-radius: var(--r); cursor: pointer; font-family: 'DM Sans', sans-serif; width: 100%; }
+.copy-btn.copied { background: rgba(34,160,107,0.1); color: var(--ab-in); border-color: rgba(34,160,107,0.4); }
+
+.d-section-title { font-size: 11px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; font-family: 'DM Mono', monospace; }
+.bk-info-box { background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r); padding: 13px 14px; display: flex; flex-direction: column; gap: 7px; margin-bottom: 8px; }
+.bk-info-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.bk-info-label { color: var(--text3); font-size: 12px; }
+.bk-info-value { font-family: 'DM Mono', monospace; color: var(--text); }
+.bk-info-value.highlight { color: var(--navy); font-size: 15px; font-weight: 600; }
+.no-bk { font-size: 13px; color: var(--text3); text-align: center; padding: 18px 0; }
+.ob-warning { background: var(--ob-bg); border: 1px solid rgba(220,38,38,0.3); border-radius: var(--r); padding: 10px 12px; margin-bottom: 10px; font-size: 12px; color: var(--ob-color); font-weight: 600; }
+
+.pw-current-box { background: var(--bg); border: 1px solid rgba(30,58,138,0.2); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.pw-display-row { display: flex; align-items: center; gap: 10px; }
+.pw-display { flex: 1; font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 600; color: var(--navy); letter-spacing: 0.2em; min-height: 36px; display: flex; align-items: center; }
+.pw-display.empty { font-size: 14px; color: var(--text3); letter-spacing: 0; font-weight: 400; }
+.pw-edit-btn { padding: 7px 14px; font-size: 12px; border: 1px solid var(--border2); border-radius: var(--r); background: var(--surface2); color: var(--text2); cursor: pointer; font-family: 'DM Sans', sans-serif; flex-shrink: 0; }
+.pw-edit-row { display: flex; gap: 8px; align-items: center; }
+.pw-input { flex: 1; padding: 10px 12px; font-size: 18px; letter-spacing: 0.2em; background: var(--surface); border: 1px solid var(--navy); border-radius: var(--r); color: var(--navy); font-family: 'DM Mono', monospace; outline: none; }
+.pw-save-btn { padding: 10px 16px; font-size: 13px; font-weight: 600; background: var(--navy); color: #fff; border: none; border-radius: var(--r); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.pw-history-title { font-size: 11px; color: var(--text3); margin: 10px 0 6px; }
+.pw-history-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 11px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 4px; }
+.pw-history-pw { font-family: 'DM Mono', monospace; color: var(--text2); font-size: 14px; letter-spacing: 0.1em; }
+.pw-history-meta { font-size: 11px; color: var(--text3); }
+
+.block-form { background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r); padding: 12px; margin-bottom: 8px; }
+.block-form-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.block-input { padding: 8px 10px; font-size: 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r); color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; flex: 1; min-width: 110px; }
+.block-input:focus { border-color: var(--navy); }
+.block-reason-input { width: 100%; padding: 8px 10px; font-size: 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r); color: var(--text); font-family: 'DM Sans', sans-serif; outline: none; margin-bottom: 8px; }
+.block-reason-input::placeholder { color: var(--text3); }
+.block-add-btn { width: 100%; padding: 9px; font-size: 12px; font-weight: 600; background: var(--bl-color); color: #fff; border: none; border-radius: var(--r); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.block-item { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 6px; }
+.block-item-info { flex: 1; }
+.block-item-dates { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text); }
+.block-item-reason { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.block-del { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.block-del:active { background: rgba(220,38,38,0.1); color: #dc2626; }
+
+.memo-input-row { display: flex; gap: 8px; align-items: flex-end; }
+.memo-textarea { flex: 1; padding: 10px 12px; font-size: 13px; min-height: 64px; max-height: 120px; background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r); color: var(--text); resize: vertical; font-family: 'DM Sans', sans-serif; outline: none; line-height: 1.5; }
+.memo-textarea:focus { border-color: var(--navy); }
+.memo-add-btn { padding: 10px 14px; font-size: 13px; background: var(--surface2); color: var(--text); border: 1px solid var(--border2); border-radius: var(--r); cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+.memo-item { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 6px; }
+.memo-item-body { flex: 1; }
+.memo-item-text { font-size: 13px; color: var(--text); line-height: 1.6; word-break: break-all; }
+.memo-item-date { font-size: 10px; color: var(--text3); margin-top: 3px; font-family: 'DM Mono', monospace; }
+.memo-del { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+.memo-del:active { background: rgba(220,38,38,0.1); color: #dc2626; }
+.memo-edit-btn { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+
+.toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--text); color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 500; z-index: 999; opacity: 0; transition: opacity 0.2s; white-space: nowrap; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+.toast.show { opacity: 1; }
+
+/* 날짜 검색 패널 */
+.date-search-panel {
+  position: sticky; top: var(--header-h, 89px); z-index: 91;
+  background: var(--navy); overflow: hidden;
+  max-height: 0; transition: max-height 0.2s ease;
+}
+.date-search-panel.open { max-height: 60px; }
+.date-search-inner { display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
+.date-search-input {
+  flex: 1; padding: 7px 10px; font-size: 13px; border-radius: var(--r);
+  border: none; background: rgba(255,255,255,0.15); color: #fff;
+  font-family: 'DM Mono', monospace; outline: none;
+  color-scheme: dark;
+}
+.date-search-input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.7; }
+.date-search-go {
+  padding: 7px 16px; font-size: 13px; font-weight: 600;
+  background: #fff; color: var(--navy); border: none;
+  border-radius: var(--r); cursor: pointer; font-family: 'DM Sans', sans-serif;
+  white-space: nowrap;
+}
+.date-search-close {
+  width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);
+  background: none; color: #fff; cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+/* 열 하이라이트 - 오늘 테두리와 동일한 스타일로 */
+.day-th.col-hover { color: #38bdf8 !important; font-weight: 600; }
+.day-cell.col-hover .cell-inner { outline: 2px solid #38bdf8; outline-offset: -2px; border-radius: 5px; }
+
+/* 배너 호버 날짜 표시 */
+.today-banner { transition: background 0.15s; }
+.today-banner.hover-mode { background: rgba(30,58,138,0.06); }
+.banner-date-label { font-size: 10px; color: var(--text3); margin-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="header-top">
+    <div>
+      <div class="app-title">HANA <span>STAY</span></div>
+      <div class="app-subtitle">예약현황</div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="dateSearchBtn" title="날짜 이동">🔍</button>
+      <button class="icon-btn" id="todayBtn">●</button>
+      <button class="icon-btn" id="blockBtn">🔒</button>
+      <button class="icon-btn" id="settingsBtn">☰</button>
+    </div>
+  </div>
+  <div class="nav-row">
+    <button class="nav-arrow" id="prevBtn">‹</button>
+    <div class="month-display" id="monthDisplay"></div>
+    <button class="nav-arrow" id="nextBtn">›</button>
+    <div class="view-tabs">
+      <button class="view-tab" id="monthTab">월간</button>
+      <button class="view-tab" id="weekTab">주간</button>
+      <button class="view-tab active" id="multiTab">연속</button>
+    </div>
+  </div>
+</div>
+
+<div class="date-search-panel" id="dateSearchPanel">
+  <div class="date-search-inner">
+    <input type="date" class="date-search-input" id="dateSearchInput">
+    <button class="date-search-go" id="dateSearchGo">이동</button>
+    <button class="date-search-close" id="dateSearchClose">✕</button>
+  </div>
+</div>
+<div class="today-banner" id="todayBanner"></div>
+
+<div class="main">
+  <div class="sync-row">
+    <span class="sync-time" id="syncTime">—</span>
+  </div>
+  <div class="ob-alerts-wrap"><div id="obAlerts"></div></div>
+  <div id="calendarArea"></div>
+</div>
+
+<div class="legend-bar">
+  <div class="legend-item" style="color:var(--ab-out);font-size:10px;font-weight:600;">✈</div>
+  <div class="legend-item"><div class="legend-box" style="background:rgba(229,80,58,0.2);border:1px solid rgba(229,80,58,0.4);"></div>아웃</div>
+  <div class="legend-item"><div class="legend-box" style="background:rgba(34,160,107,0.2);border:1px solid rgba(34,160,107,0.4);"></div>인</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item" style="color:var(--bk-out);font-size:10px;">🏨</div>
+  <div class="legend-item"><div class="legend-box" style="background:rgba(26,111,204,0.2);border:1px solid rgba(26,111,204,0.4);"></div>아웃/인</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item" style="color:var(--tr-out);font-size:10px;">🌐</div>
+  <div class="legend-item"><div class="legend-box" style="background:rgba(212,87,30,0.2);border:1px solid rgba(212,87,30,0.4);"></div>아웃/인</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item" style="color:var(--lv-out);font-size:10px;">🏡</div>
+  <div class="legend-item"><div class="legend-box" style="background:rgba(124,58,237,0.2);border:1px solid rgba(124,58,237,0.4);"></div>아웃/인</div>
+  <div class="legend-sep"></div>
+  <div class="legend-item"><div class="legend-box" style="background:rgba(55,65,81,0.15);border:1px solid rgba(55,65,81,0.3);"></div>블락</div>
+  <div class="legend-sep"></div>
+  <div class="legend-today"></div><span style="font-size:11px;color:var(--text3);">오늘</span>
+</div>
+
+<div class="panel-overlay" id="detailPanel">
+  <div class="panel-sheet">
+    <div class="sheet-header">
+      <div class="sheet-title" id="detailTitle"></div>
+      <button class="sheet-close" id="closeDetail">✕</button>
+    </div>
+    <div class="sheet-body" id="detailBody"></div>
+  </div>
+</div>
+
+<div class="panel-overlay" id="blockPanel">
+  <div class="panel-sheet">
+    <div class="sheet-header">
+      <span class="sheet-title">🔒 수동 블락 관리</span>
+      <button class="sheet-close" id="closeBlock">✕</button>
+    </div>
+    <div class="sheet-body">
+      <div class="sheet-section">
+        <div class="sheet-section-title">블락 추가</div>
+        <div class="block-form">
+          <div class="block-form-row">
+            <select class="block-input" id="blockRoom"><option value="">호실 선택</option></select>
+            <input type="date" class="block-input" id="blockStart">
+            <input type="date" class="block-input" id="blockEnd">
+          </div>
+          <input class="block-reason-input" id="blockReason" placeholder="사유 (청소/점검/개인사용 등)">
+          <button class="block-add-btn" id="blockAddBtn">🔒 블락 추가</button>
+        </div>
+      </div>
+      <div class="sheet-section">
+        <div class="sheet-section-title">등록된 블락 (<span id="blockCount">0</span>)</div>
+        <div id="blockList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel-overlay" id="settingsPanel">
+  <div class="panel-sheet">
+    <div class="sheet-header">
+      <span class="sheet-title">호실 관리</span>
+      <button class="sheet-close" id="closeSettings">✕</button>
+    </div>
+    <div class="sheet-body">
+      <div class="sheet-section">
+        <div class="sheet-section-title">호실 추가</div>
+        <div class="ical-form">
+          <input class="ical-input" id="inputName" placeholder="호실명 (예: 302호)" maxlength="20">
+          <input class="ical-input" id="inputUrl" placeholder="✈ Airbnb iCal URL" autocomplete="off">
+          <input class="ical-input" id="inputBkUrl" placeholder="🏨 Booking.com iCal URL" autocomplete="off">
+          <input class="ical-input" id="inputTrUrl" placeholder="🌐 Trip.com iCal URL" autocomplete="off">
+          <input class="ical-input" id="inputLvUrl" placeholder="🏡 리브애니웨어 iCal URL" autocomplete="off">
+        </div>
+        <button class="add-btn" id="addRoomBtn">+ 호실 추가</button>
+        <div style="height:10px;"></div>
+        <div class="ical-hint">
+          ✈ <strong style="color:var(--ab-out)">Airbnb</strong>: 앱 → 숙소 관리 → 달력 → 달력 내보내기<br>
+          🏨 <strong style="color:var(--bk-out)">Booking.com</strong>: Extranet → 객실 → 달력 동기화<br>
+          🌐 <strong style="color:var(--tr-out)">Trip.com</strong>: 파트너 센터 → 예약 → 달력 동기화<br>
+          🏡 <strong style="color:var(--lv-out)">리브애니웨어</strong>: 파트너 센터 → 숙소 관리
+        </div>
+      </div>
+      <div class="sheet-section">
+        <div class="sheet-section-title">등록된 호실 (<span id="roomCount">0</span>/9)</div>
+        <div id="roomList"></div>
+      </div>
+      <div class="sheet-section">
+        <div class="sheet-section-title">📤 iCal 내보내기 URL</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.7;">
+          아래 URL을 각 플랫폼 iCal 가져오기에 등록하면 오버부킹 자동 방지.<br>
+          <strong style="color:var(--navy)">한번만</strong> 등록하면 끝!
+        </div>
+        <div id="exportUrlList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS = ['#e5503a','#1a6fcc','#7c3aed','#d4571e','#22a06b','#f59e0b','#ec4899','#0891b2','#65a30d'];
+const DAY_KO = ['일','월','화','수','목','금','토'];
+const MONTHS_TO_SHOW = 6;
+const PROXY = 'https://ical-proxy.vagabond1984.workers.dev';
+const ICAL_BASE = 'https://ical-proxy.vagabond1984.workers.dev/ical';
+
+let curY, curM, viewMode = 'multi';
+let rooms = [];
+let manualBlocks = [];
+let dragSrcIdx = null;
+
+function today() { const d = new Date(); return {y:d.getFullYear(),m:d.getMonth(),d:d.getDate()}; }
+function daysIn(y,m) { return new Date(y,m+1,0).getDate(); }
+function nowStr() { const n=new Date(); return `${n.getFullYear()}.${String(n.getMonth()+1).padStart(2,'0')}.${String(n.getDate()).padStart(2,'0')} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; }
+function dateStr(y,m,d) { return `${y}.${String(m+1).padStart(2,'0')}.${String(d).padStart(2,'0')}`; }
+
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+// ── ROOMS ──
+async function saveRooms() {
+  const data=rooms.map(r=>({name:r.name,url:r.url||'',bkUrl:r.bkUrl||'',trUrl:r.trUrl||'',lvUrl:r.lvUrl||'',color:r.color}));
+  try{localStorage.setItem('hana_rooms',JSON.stringify(data));}catch(e){}
+  try{await fetch(`${PROXY}/rooms`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});}catch(e){}
+}
+
+async function loadRooms() {
+  try {
+    const resp=await fetch(`${PROXY}/rooms`);
+    if(resp.ok){
+      const data=await resp.json();
+      if(data&&data.length>0){
+        rooms=data.map((r,i)=>({name:r.name,url:r.url||'',bkUrl:r.bkUrl||'',trUrl:r.trUrl||'',lvUrl:r.lvUrl||'',color:r.color||COLORS[i%COLORS.length],bookings:[],bkBookings:[],trBookings:[],lvBookings:[]}));
+        try{localStorage.setItem('hana_rooms',JSON.stringify(data));}catch(e){}
+        return;
+      }
+    }
+  }catch(e){}
+  try{
+    const d=JSON.parse(localStorage.getItem('hana_rooms')||'[]');
+    rooms=d.map((r,i)=>({name:r.name,url:r.url||'',bkUrl:r.bkUrl||'',trUrl:r.trUrl||'',lvUrl:r.lvUrl||'',color:r.color||COLORS[i%COLORS.length],bookings:[],bkBookings:[],trBookings:[],lvBookings:[]}));
+  }catch(e){rooms=[];}
+}
+
+// ── BLOCKS ──
+function saveBlocks() {
+  try{localStorage.setItem('hana_blocks',JSON.stringify(manualBlocks));}catch(e){}
+  fetch(`${PROXY}/extra`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'manual_blocks',data:manualBlocks})}).catch(()=>{});
+}
+async function loadBlocks() {
+  try{
+    const resp=await fetch(`${PROXY}/extra?key=manual_blocks`);
+    if(resp.ok){
+      const data=await resp.json();
+      manualBlocks=Array.isArray(data)?data:[];
+      return;
+    }
+  }catch(e){}
+  try{manualBlocks=JSON.parse(localStorage.getItem('hana_blocks')||'[]');}catch(e){manualBlocks=[];}
+}
+function blockTypeFor(roomName,y,m,d) {
+  const cur=new Date(y,m,d);
+  for(const bl of manualBlocks){
+    if(bl.roomName!==roomName) continue;
+    const s=new Date(bl.startY,bl.startM,bl.startD);
+    const e=new Date(bl.endY,bl.endM,bl.endD);
+    if(cur>=s&&cur<=e) return 'block';
+  }
+  return 'empty';
+}
+
+// ── EXTRA ──
+function getExtra(key){try{return JSON.parse(localStorage.getItem('hana_ex_'+key)||'null')||{passwords:[],memos:[]};}catch(e){return{passwords:[],memos:[]};}}
+function setExtra(key,data){
+  try{localStorage.setItem('hana_ex_'+key,JSON.stringify(data));}catch(e){}
+  fetch(`${PROXY}/extra`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,data})}).catch(()=>{});
+}
+async function loadExtra(key){
+  try{
+    const resp=await fetch(`${PROXY}/extra?key=${encodeURIComponent(key)}`);
+    if(resp.ok){const data=await resp.json();try{localStorage.setItem('hana_ex_'+key,JSON.stringify(data));}catch(e){}return data;}
+  }catch(e){}
+  return getExtra(key);
+}
+
+// ── SYNC ──
+async function triggerSync() {
+  const icon=document.getElementById('syncIcon');
+  icon.classList.add('spin');
+  document.getElementById('syncTime').textContent='동기화 중...';
+  try{await fetch(`${PROXY}/sync`,{method:'POST'});}catch(e){}
+  await loadBookingsFromKV();
+  icon.classList.remove('spin');
+  document.getElementById('syncTime').textContent=nowStr()+' 기준';
+  render();
+  checkOverbooking();
+}
+
+async function loadBookingsFromKV() {
+  try{
+    const resp=await fetch(`${PROXY}/bookings`);
+    if(!resp.ok) return;
+    const data=await resp.json();
+    rooms.forEach(room=>{
+      const bks=data[room.name];
+      if(!bks) return;
+      room.bookings=bks.ab||[];
+      room.bkBookings=bks.bk||[];
+      room.trBookings=bks.tr||[];
+      room.lvBookings=bks.lv||[];
+    });
+  }catch(e){}
+}
+
+// ── CELL TYPE ──
+function cellTypeFor(bookings,d,y,m){
+  let occupied=false,isOut=false,isIn=false;
+  const cur=new Date(y,m,d);
+  for(const bk of bookings){
+    const cin=new Date(bk.cinY,bk.cinM,bk.cinD);
+    const cout=new Date(bk.coutY,bk.coutM,bk.coutD);
+    if(cur.getTime()===cout.getTime()) isOut=true;
+    if(cur.getTime()===cin.getTime()) isIn=true;
+    if(cur>cin&&cur<cout) occupied=true;
+  }
+  if(isOut&&isIn) return 'both';
+  if(isOut) return 'checkout';
+  if(isIn) return 'checkin';
+  if(occupied) return 'occupied';
+  return 'empty';
+}
+
+function isOverbooking(room,d,y,m){
+  // 실제 숙박 중인(occupied) 예약만 카운트 - 체크인/아웃 교체는 오버부킹 아님
+  function isOccupied(bookings){
+    const cur=new Date(y,m,d);
+    return bookings.some(bk=>{
+      const cin=new Date(bk.cinY,bk.cinM,bk.cinD);
+      const cout=new Date(bk.coutY,bk.coutM,bk.coutD);
+      return cur>cin && cur<cout; // 체크인/아웃 당일 제외, 순수 숙박 중만
+    });
+  }
+  let n=0;
+  if(isOccupied(room.bookings||[])) n++;
+  if(isOccupied(room.bkBookings||[])) n++;
+  if(isOccupied(room.trBookings||[])) n++;
+  if(isOccupied(room.lvBookings||[])) n++;
+  return n>=2;
+}
+
+function cellClsAndLbl(room,d,y,m){
+  const ab=cellTypeFor(room.bookings||[],d,y,m);
+  const bk=cellTypeFor(room.bkBookings||[],d,y,m);
+  const tr=cellTypeFor(room.trBookings||[],d,y,m);
+  const lv=cellTypeFor(room.lvBookings||[],d,y,m);
+  const bl=blockTypeFor(room.name,y,m,d);
+  if(isOverbooking(room,d,y,m)) return{cls:'c-overbooking',lbl:'<span style="font-size:8px;color:var(--ob-color);font-weight:700;">⚠️</span>'};
+  const abE=ab==='empty',bkE=bk==='empty',trE=tr==='empty',lvE=lv==='empty',blE=bl==='empty';
+  if(abE&&bkE&&trE&&lvE&&blE) return{cls:'c-empty',lbl:''};
+  function io(ct){if(ct==='checkout')return 'out';if(ct==='checkin')return 'in';if(ct==='both')return '↕';return '';}
+  function bothLbl(icon){return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">out</span><span style="font-size:7px;line-height:1;">in</span></span>`;}
+
+  if(!blE&&abE&&bkE&&trE&&lvE) return{cls:'c-bl-block',lbl:'<span class="cell-icon">🔒</span>'};
+  if(bkE&&trE&&lvE&&blE){const t=io(ab);if(!t)return{cls:'c-occupied',lbl:''};if(ab==='both')return{cls:'c-both',lbl:bothLbl()};return{cls:'c-'+ab,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&trE&&lvE&&blE){const t=io(bk);if(!t)return{cls:'c-bk-occupied',lbl:''};if(bk==='both')return{cls:'c-bk-both',lbl:bothLbl()};return{cls:'c-bk-'+bk,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&bkE&&lvE&&blE){const t=io(tr);if(!t)return{cls:'c-tr-occupied',lbl:''};if(tr==='both')return{cls:'c-tr-both',lbl:bothLbl()};return{cls:'c-tr-'+tr,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&bkE&&trE&&blE){const t=io(lv);if(!t)return{cls:'c-lv-occupied',lbl:''};if(lv==='both')return{cls:'c-lv-both',lbl:bothLbl()};return{cls:'c-lv-'+lv,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${t}</span>`};}
+  const parts=[];
+  if(!abE) parts.push(`<span style="font-size:7px;color:var(--ab-out);">✈${io(ab)}</span>`);
+  if(!bkE) parts.push(`<span style="font-size:7px;color:var(--bk-out);">🏨${io(bk)}</span>`);
+  if(!trE) parts.push(`<span style="font-size:7px;color:var(--tr-out);">🌐${io(tr)}</span>`);
+  if(!lvE) parts.push(`<span style="font-size:7px;color:var(--lv-out);">🏡${io(lv)}</span>`);
+  if(!blE) parts.push('<span style="font-size:7px;">🔒</span>');
+  return{cls:'c-dual',lbl:parts.join('')};
+}
+
+// ── in/out 카운트 ──
+function calcDayCount(y,m,d){
+  let inCount=0,outCount=0;
+  const cur=new Date(y,m,d);
+  for(const r of rooms){
+    const all=[...(r.bookings||[]),...(r.bkBookings||[]),...(r.trBookings||[]),...(r.lvBookings||[])];
+    for(const bk of all){
+      if(cur.getTime()===new Date(bk.cinY,bk.cinM,bk.cinD).getTime()) inCount++;
+      if(cur.getTime()===new Date(bk.coutY,bk.coutM,bk.coutD).getTime()) outCount++;
+    }
+  }
+  return{inCount,outCount};
+}
+
+
+
+// ── TODAY BANNER ──
+function updateTodayBanner(y, m, d, isHover=false){
+  if(y===undefined){ const t=today(); y=t.y; m=t.m; d=t.d; }
+  const{inCount,outCount}=calcDayCount(y,m,d);
+  const dname=DAY_KO[new Date(y,m,d).getDay()];
+  const t=today(); const isToday=(y===t.y&&m===t.m&&d===t.d);
+  const label=isToday?'오늘':isHover?`${m+1}월 ${d}일`:`${m+1}월 ${d}일`;
+  const banner=document.getElementById('todayBanner');
+  // 배경은 항상 흰색 유지
+  banner.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;flex:1;">
+      <div>
+        <div class="today-date" style="margin-bottom:2px;">${isToday?'오늘':isHover?'📅 선택일':''}</div>
+        <div class="today-date"><strong>${m+1}월 ${d}일 (${dname})</strong></div>
+      </div>
+      <div class="today-counts">
+        <div class="today-count"><div class="num out">${outCount}</div><div class="lbl">체크아웃</div></div>
+        <div class="today-count"><div class="num inc">${inCount}</div><div class="lbl">체크인</div></div>
+      </div>
+    </div>
+    ${isToday?`<button class="sync-btn-fixed" onclick="triggerSync()"><span id="syncIcon">↻</span></button>`:'<button class="sync-btn-fixed" style="background:var(--surface2);border-color:var(--border2);" onclick="resetBanner()">↩</button>'}`;
+}
+
+function resetBanner(){
+  if(typeof _pinnedCol!=='undefined') _pinnedCol={y:null,m:null,d:null};
+  highlightCol(null,null,null);
+  updateTodayBanner();
+}
+
+// 호버/탭 으로 배너 날짜 업데이트 + 열 하이라이트
+let _bannerResetTimer=null;
+let _pinnedCol={y:null,m:null,d:null}; // 마지막 고정 날짜
+
+function highlightCol(y,m,d){
+  document.querySelectorAll('.col-hover').forEach(el=>el.classList.remove('col-hover'));
+  // null이면 핀 위치로 복원
+  if(y===null){
+    if(_pinnedCol.y!==null){
+      document.querySelectorAll(`[data-y="${_pinnedCol.y}"][data-m="${_pinnedCol.m}"][data-d="${_pinnedCol.d}"]`).forEach(el=>el.classList.add('col-hover'));
+    }
+    return;
+  }
+  // 새 날짜 핀 저장
+  _pinnedCol={y,m,d};
+  document.querySelectorAll(`[data-y="${y}"][data-m="${m}"][data-d="${d}"]`).forEach(el=>el.classList.add('col-hover'));
+}
+
+function hoverBanner(y,m,d){
+  clearTimeout(_bannerResetTimer);
+  updateTodayBanner(y,m,d,true);
+  highlightCol(y,m,d);
+}
+function leaveBanner(){
+  clearTimeout(_bannerResetTimer);
+  _bannerResetTimer=setTimeout(()=>{
+    updateTodayBanner();
+    highlightCol(null,null,null);
+  },800);
+}
+
+// ── OVERBOOKING ──
+function checkOverbooking(){
+  const alerts=[];
+  const t=today();
+  const seen=new Set();
+  for(const r of rooms){
+    for(let offset=0;offset<60;offset++){
+      const dt=new Date(t.y,t.m,t.d+offset);
+      const y=dt.getFullYear(),m=dt.getMonth(),d=dt.getDate();
+      if(isOverbooking(r,d,y,m)){
+        const k=r.name+dateStr(y,m,d);
+        if(!seen.has(k)){seen.add(k);alerts.push({room:r.name,date:dateStr(y,m,d)});}
+      }
+    }
+  }
+  const el=document.getElementById('obAlerts');
+  if(!alerts.length){el.innerHTML='';return;}
+  el.innerHTML=alerts.slice(0,5).map(a=>`<div class="ob-alert" onclick="goToDate('${a.date}')" style="cursor:pointer;"><div class="ob-alert-text">⚠️ 오버부킹 가능성: <strong>${a.room}</strong> ${a.date} <span style="font-size:10px;opacity:0.7;">→ 클릭해서 이동</span></div></div>`).join('');
+}
+
+// ── RENDER ──
+function stickyTh(extra=''){return `<th class="room-th" style="position:sticky;left:0;top:0;background:var(--bg);z-index:20;${extra}"></th>`;}
+function stickyTd(r){return `<td class="room-th" style="position:sticky;left:0;background:var(--bg);z-index:4;"><div class="room-th-inner"><div class="room-dot" style="background:${r.color}"></div>${r.name}</div></td>`;}
+
+
+function buildDayRow(days,y,m,extra=''){
+  const t2=today();
+  let h=`<tr>${stickyTh(extra)}`;
+  for(let d=1;d<=days;d++){
+    const dow=new Date(y,m,d).getDay();
+    const isT=y===t2.y&&m===t2.m&&d===t2.d;
+    const cls=isT?'today-hd':dow===0?'sun':dow===6?'sat':'';
+    h+=`<th class="day-th ${cls}" data-y="${y}" data-m="${m}" data-d="${d}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
+  }
+  return h+'</tr>';
+}
+function buildBodyRows(days,y,m){
+  const t2=today();
+  let h='';
+  for(const r of rooms){
+    const ri=rooms.indexOf(r);
+    h+=`<tr class="cal-row">${stickyTd(r)}`;
+    for(let d=1;d<=days;d++){
+      const{cls,lbl}=cellClsAndLbl(r,d,y,m);
+      const isT=y===t2.y&&m===t2.m&&d===t2.d;
+      h+=`<td class="day-cell${isT?' today-ring':''}" data-ri="${ri}" data-y="${y}" data-m="${m}" data-d="${d}"><div class="cell-inner ${cls}">${lbl}</div></td>`;
+    }
+    h+='</tr>';
+  }
+  return h;
+}
+
+function renderMonth(){
+  if(!rooms.length) return emptyState();
+  const days=daysIn(curY,curM);
+  return `<div class="cal-scroll" id="monthCalScroll"><table class="cal-table"><thead>${buildDayRow(days,curY,curM)}</thead><tbody>${buildBodyRows(days,curY,curM)}</tbody></table></div>`;
+}
+
+// ── 월간 스와이프/휠로 달 전환 ──
+let _swipeStartX=0, _swipeStartY=0, _swipeScrollLeft=0, _isSwiping=false;
+function attachMonthSwipe(){
+  const el=document.getElementById('monthCalScroll');
+  if(!el) return;
+
+  // 터치 스와이프
+  el.addEventListener('touchstart',e=>{
+    _swipeStartX=e.touches[0].clientX;
+    _swipeStartY=e.touches[0].clientY;
+    _swipeScrollLeft=el.scrollLeft;
+    _isSwiping=true;
+  },{passive:true});
+  el.addEventListener('touchend',e=>{
+    if(!_isSwiping) return;
+    _isSwiping=false;
+    const dx=e.changedTouches[0].clientX-_swipeStartX;
+    const dy=e.changedTouches[0].clientY-_swipeStartY;
+    // 수평 스와이프가 수직보다 크고, 테이블 끝에 닿았을 때만 달 전환
+    if(Math.abs(dx)>Math.abs(dy)*1.5 && Math.abs(dx)>50){
+      const atStart=el.scrollLeft<=2;
+      const atEnd=el.scrollLeft>=el.scrollWidth-el.clientWidth-2;
+      if(dx>0 && atStart){
+        // 이전 달
+        curM--;if(curM<0){curM=11;curY--;}
+        render();
+      } else if(dx<0 && atEnd){
+        // 다음 달
+        curM++;if(curM>11){curM=0;curY++;}
+        render();
+      }
+    }
+  },{passive:true});
+
+  // 마우스 휠 (수평 휠 또는 수직 휠 + 끝 감지)
+  el.addEventListener('wheel',e=>{
+    const hScroll=Math.abs(e.deltaX)>Math.abs(e.deltaY);
+    if(hScroll) return; // 가로 스크롤은 기본 동작
+    // 세로 휠인데 테이블 끝에 닿으면 달 전환
+    const atStart=el.scrollLeft<=2;
+    const atEnd=el.scrollLeft>=el.scrollWidth-el.clientWidth-2;
+    if(e.deltaY<0 && atStart){
+      e.preventDefault();
+      curM--;if(curM<0){curM=11;curY--;}
+      render();
+    } else if(e.deltaY>0 && atEnd){
+      e.preventDefault();
+      curM++;if(curM>11){curM=0;curY++;}
+      render();
+    }
+  },{passive:false});
+}
+
+function renderWeek(){
+  if(!rooms.length) return emptyState();
+  const days=daysIn(curY,curM);
+  let weeks=[],wk=[];
+  for(let d=1;d<=days;d++){
+    wk.push(d);
+    const dow=new Date(curY,curM,d).getDay();
+    if(dow===6||d===days){weeks.push([...wk]);wk=[];}
+  }
+  let html='';
+  for(const week of weeks){
+    const ws=week[0],we=week[week.length-1];
+    // io row
+    const t2=today();
+    let ioRow='';
+
+    ioRow+='</tr>';
+    let dayRow=`<tr>${stickyTh()}`;
+    week.forEach(d=>{
+      const dow=new Date(curY,curM,d).getDay();
+      const isT=curY===t2.y&&curM===t2.m&&d===t2.d;
+      const cls=isT?'today-hd':dow===0?'sun':dow===6?'sat':'';
+      dayRow+=`<th class="day-th ${cls}" data-y="${curY}" data-m="${curM}" data-d="${d}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
+    });
+    dayRow+='</tr>';
+    let bodyRows='';
+    for(const r of rooms){
+      const ri=rooms.indexOf(r);
+      bodyRows+=`<tr class="cal-row">${stickyTd(r)}`;
+      week.forEach(d=>{
+        const{cls,lbl}=cellClsAndLbl(r,d,curY,curM);
+        const isT=curY===t2.y&&curM===t2.m&&d===t2.d;
+        bodyRows+=`<td class="day-cell${isT?' today-ring':''}" data-ri="${ri}" data-y="${curY}" data-m="${curM}" data-d="${d}"><div class="cell-inner ${cls}">${lbl}</div></td>`;
+      });
+      bodyRows+='</tr>';
+    }
+    // checkout cards
+    const coMap={};
+    week.forEach(d=>{
+      rooms.forEach(r=>{
+        const all=[...(r.bookings||[]),...(r.bkBookings||[]),...(r.trBookings||[]),...(r.lvBookings||[])];
+        if(all.some(bk=>new Date(bk.coutY,bk.coutM,bk.coutD).getTime()===new Date(curY,curM,d).getTime())){
+          if(!coMap[d]) coMap[d]=[];
+          coMap[d].push(r.name);
+        }
+      });
+    });
+    const coCards=Object.keys(coMap).map(d=>{
+      const dow=new Date(curY,curM,+d).getDay();
+      return `<div class="checkout-card"><strong>${curM+1}/${d}(${DAY_KO[dow]}) 체크아웃</strong><br><span>${coMap[d].join(' · ')}</span></div>`;
+    }).join('');
+    html+=`<div class="week-block"><div class="week-label">${curM+1}월 ${ws}일 — ${we}일</div><div class="cal-scroll"><table class="cal-table"><thead>${dayRow}</thead><tbody>${bodyRows}</tbody></table></div>${coCards?`<div class="checkout-cards">${coCards}</div>`:''}</div>`;
+  }
+  return html;
+}
+
+function renderMulti(){
+  if(!rooms.length) return emptyState();
+  const t2=today();
+  // 연속뷰는 항상 오늘 달 기준으로 6개월
+  const months=[];
+  for(let i=0;i<MONTHS_TO_SHOW;i++){
+    let y=t2.y,m=t2.m+i;
+    while(m>11){m-=12;y++;}
+    months.push({y,m});
+  }
+  let monthRow=`<tr>${stickyTh('z-index:6;')}`;
+  months.forEach(({y,m})=>{
+    const days=daysIn(y,m);
+    monthRow+=`<th colspan="${days}" class="multi-month-label">${y}.${String(m+1).padStart(2,'0')}</th>`;
+  });
+  monthRow+='</tr>';
+  let ioRow='';
+
+  ioRow+='</tr>';
+  let dayRow=`<tr>${stickyTh('z-index:6;')}`;
+  months.forEach(({y,m})=>{
+    for(let d=1;d<=daysIn(y,m);d++){
+      const dow=new Date(y,m,d).getDay();
+      const isT=y===t2.y&&m===t2.m&&d===t2.d;
+      const cls=isT?'today-hd':dow===0?'sun':dow===6?'sat':'';
+      dayRow+=`<th class="day-th ${cls}" data-y="${y}" data-m="${m}" data-d="${d}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
+    }
+  });
+  dayRow+='</tr>';
+  let bodyRows='';
+  for(const r of rooms){
+    const ri=rooms.indexOf(r);
+    bodyRows+=`<tr class="cal-row">${stickyTd(r)}`;
+    months.forEach(({y,m})=>{
+      for(let d=1;d<=daysIn(y,m);d++){
+        const{cls,lbl}=cellClsAndLbl(r,d,y,m);
+        const isT=y===t2.y&&m===t2.m&&d===t2.d;
+        bodyRows+=`<td class="day-cell${isT?' today-ring':''}" data-ri="${ri}" data-y="${y}" data-m="${m}" data-d="${d}"><div class="cell-inner ${cls}">${lbl}</div></td>`;
+      }
+    });
+    bodyRows+='</tr>';
+  }
+  return `<div class="cal-scroll"><table class="cal-table"><thead>${monthRow}${dayRow}</thead><tbody>${bodyRows}</tbody></table></div>`;
+}
+
+function emptyState(){
+  return `<div class="empty-state"><div class="big">🏠</div><strong>호실이 없어요</strong><br>☰ 를 눌러 iCal 링크로 호실을 추가해보세요.</div>`;
+}
+
+function render(){
+  const isMulti=viewMode==='multi';
+  document.getElementById('monthDisplay').textContent=`${curY}. ${String(curM+1).padStart(2,'0')}`;
+  document.getElementById('prevBtn').style.visibility=isMulti?'hidden':'visible';
+  document.getElementById('nextBtn').style.visibility=isMulti?'hidden':'visible';
+  if(viewMode==='month'){document.getElementById('calendarArea').innerHTML=renderMonth();attachMonthSwipe();}
+  else if(viewMode==='week') document.getElementById('calendarArea').innerHTML=renderWeek();
+  else document.getElementById('calendarArea').innerHTML=renderMulti();
+  updateTodayBanner();
+  attachCellClicks();
+  scrollToToday();
+}
+
+function scrollToToday(){
+  _pinnedCol={y:null,m:null,d:null}; // 오늘로 이동 시 핀 초기화
+  requestAnimationFrame(()=>{
+    const tc=document.querySelector('.today-ring');
+    if(tc){const se=tc.closest('.cal-scroll');if(se){const cr=tc.getBoundingClientRect(),sr=se.getBoundingClientRect();se.scrollBy({left:cr.left-sr.left-sr.width*0.25,behavior:'smooth'});}}
+  });
+}
+
+function goToDate(dateStr){
+  const parts=dateStr.split('.');
+  const y=+parts[0],m=+parts[1]-1,d=+parts[2];
+  // 해당 월이 현재 뷰에 없으면 이동
+  if(viewMode==='month'&&(curY!==y||curM!==m)){curY=y;curM=m;render();}
+  requestAnimationFrame(()=>{
+    const cell=document.querySelector(`[data-y="${y}"][data-m="${m}"][data-d="${d}"]`);
+    if(cell){
+      cell.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+      cell.querySelector('.cell-inner').style.outline='2px solid var(--ob-color)';
+      setTimeout(()=>{if(cell.querySelector('.cell-inner'))cell.querySelector('.cell-inner').style.outline='';},2000);
+    }
+  });
+}
+
+// ── DETAIL ──
+function attachCellClicks(){
+  // 날짜 헤더(th) hover (PC)
+  document.querySelectorAll('.day-th[data-y]').forEach(th=>{
+    th.addEventListener('mouseenter',()=>{
+      const y=+th.dataset.y,m=+th.dataset.m,d=+th.dataset.d;
+      if(!isNaN(y)&&!isNaN(m)&&!isNaN(d)) hoverBanner(y,m,d);
+    });
+    th.addEventListener('mouseleave',()=>leaveBanner());
+  });
+
+  document.querySelectorAll('.day-cell').forEach(cell=>{
+    let _lpTimer=null, _isLongPress=false;
+
+    // PC: 마우스 호버
+    cell.addEventListener('mouseenter',()=>{
+      const y=+cell.dataset.y,m=+cell.dataset.m,d=+cell.dataset.d;
+      if(!isNaN(y)&&!isNaN(m)&&!isNaN(d)) hoverBanner(y,m,d);
+    });
+    cell.addEventListener('mouseleave',()=>leaveBanner());
+
+    // 모바일: 롱프레스 + 드래그로 열 이동
+    cell.addEventListener('touchstart',e=>{
+      _isLongPress=false;
+      const y=+cell.dataset.y,m=+cell.dataset.m,d=+cell.dataset.d;
+      _lpTimer=setTimeout(()=>{
+        _isLongPress=true;
+        if(!isNaN(y)&&!isNaN(m)&&!isNaN(d)){
+          hoverBanner(y,m,d);
+          if(navigator.vibrate) navigator.vibrate(30);
+        }
+      },400);
+    },{passive:true});
+    cell.addEventListener('touchend',()=>{
+      clearTimeout(_lpTimer);
+      if(_isLongPress) leaveBanner();
+    },{passive:true});
+    cell.addEventListener('touchmove',e=>{
+      if(!_isLongPress){clearTimeout(_lpTimer);return;}
+      // 롱프레스 중 드래그 → 손가락 위치 셀 감지
+      const touch=e.touches[0];
+      const el=document.elementFromPoint(touch.clientX,touch.clientY);
+      const target=el&&(el.closest('.day-cell')||el.closest('.day-th[data-y]'));
+      if(target&&target.dataset.y){
+        const ty=+target.dataset.y,tm=+target.dataset.m,td=+target.dataset.d;
+        if(!isNaN(ty)&&!isNaN(tm)&&!isNaN(td)) hoverBanner(ty,tm,td);
+      }
+    },{passive:true});
+
+    // 클릭 (PC탭 + 모바일 짧은탭)
+    cell.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(_isLongPress){_isLongPress=false;return;} // 롱프레스는 클릭 무시
+      const ri=cell.dataset.ri;
+      if(ri===undefined) return;
+      const y=+cell.dataset.y,m=+cell.dataset.m,d=+cell.dataset.d;
+      openDetail(+ri,y,m,d);
+    });
+  });
+}
+
+function findAllIn(bookings,y,m,d){
+  const cur=new Date(y,m,d);
+  return bookings.filter(bk=>cur>=new Date(bk.cinY,bk.cinM,bk.cinD)&&cur<=new Date(bk.coutY,bk.coutM,bk.coutD));
+}
+
+async function openDetail(ri,y,m,d){
+  const r=rooms[ri];
+  const abBks=findAllIn(r.bookings||[],y,m,d).map(b=>({...b,platform:'airbnb'}));
+  const bkBks=findAllIn(r.bkBookings||[],y,m,d).map(b=>({...b,platform:'booking'}));
+  const trBks=findAllIn(r.trBookings||[],y,m,d).map(b=>({...b,platform:'trip'}));
+  const lvBks=findAllIn(r.lvBookings||[],y,m,d).map(b=>({...b,platform:'lv'}));
+  const allBks=[...abBks,...bkBks,...trBks,...lvBks];
+  const pLabel={airbnb:'✈ Airbnb',booking:'🏨 Booking.com',trip:'🌐 Trip.com',lv:'🏡 리브애니웨어'};
+  const pColor={airbnb:'var(--ab-out)',booking:'var(--bk-out)',trip:'var(--tr-out)',lv:'var(--lv-out)'};
+  const badge=`<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px;background:var(--navy-light);color:var(--navy);border:1px solid rgba(30,58,138,0.2);">${r.name}</span>`;
+  document.getElementById('detailTitle').innerHTML=badge+dateStr(y,m,d);
+  let obHtml='';
+  if(allBks.length>=2) obHtml=`<div class="ob-warning">⚠️ 오버부킹 가능성! ${allBks.length}개 플랫폼 예약 중복</div>`;
+  let bkHtml=`<div class="d-section-title">예약 정보</div>`;
+  if(!allBks.length){
+    const bl=manualBlocks.find(b=>{if(b.roomName!==r.name)return false;const cur=new Date(y,m,d);return cur>=new Date(b.startY,b.startM,b.startD)&&cur<=new Date(b.endY,b.endM,b.endD);});
+    if(bl) bkHtml+=`<div class="bk-info-box" style="border-color:rgba(55,65,81,0.3);"><div class="bk-info-row"><span class="bk-info-label">유형</span><span class="bk-info-value" style="color:var(--bl-color);font-weight:600;">🔒 수동 블락</span></div><div class="bk-info-row"><span class="bk-info-label">기간</span><span class="bk-info-value">${dateStr(bl.startY,bl.startM,bl.startD)} ~ ${dateStr(bl.endY,bl.endM,bl.endD)}</span></div>${bl.reason?`<div class="bk-info-row"><span class="bk-info-label">사유</span><span class="bk-info-value">${bl.reason}</span></div>`:''}</div>`;
+    else bkHtml+=`<div class="no-bk">예약 없음</div>`;
+  } else {
+    for(const bk of allBks){
+      const nights=Math.round((new Date(bk.coutY,bk.coutM,bk.coutD)-new Date(bk.cinY,bk.cinM,bk.cinD))/86400000);
+      const isOut=bk.coutY===y&&bk.coutM===m&&bk.coutD===d;
+      const isIn=bk.cinY===y&&bk.cinM===m&&bk.cinD===d;
+      const bg=isOut?'rgba(229,80,58,0.07)':isIn?'rgba(34,160,107,0.07)':'transparent';
+      const border=isOut?'rgba(229,80,58,0.3)':isIn?'rgba(34,160,107,0.3)':'var(--border2)';
+      bkHtml+=`<div class="bk-info-box" style="background:${bg};border-color:${border};">
+        <div class="bk-info-row"><span class="bk-info-label">플랫폼</span><span class="bk-info-value" style="color:${pColor[bk.platform]};font-weight:600;">${pLabel[bk.platform]}</span></div>
+        <div class="bk-info-row"><span class="bk-info-label">체크인</span><span class="bk-info-value">${dateStr(bk.cinY,bk.cinM,bk.cinD)}</span></div>
+        <div class="bk-info-row"><span class="bk-info-label">체크아웃</span><span class="bk-info-value">${dateStr(bk.coutY,bk.coutM,bk.coutD)}</span></div>
+        <div class="bk-info-row"><span class="bk-info-label">박수</span><span class="bk-info-value highlight">${nights}박</span></div>
+        ${isOut?'<div style="font-size:11px;color:var(--ab-out);font-weight:600;">← 오늘 체크아웃</div>':''}
+        ${isIn?'<div style="font-size:11px;color:var(--ab-in);font-weight:600;">← 오늘 체크인</div>':''}
+      </div>`;
+    }
+  }
+  const firstBk=allBks[0];
+  const pwKey=firstBk?`${r.name}|${firstBk.cinY}${String(firstBk.cinM+1).padStart(2,'0')}${String(firstBk.cinD).padStart(2,'0')}`:`${r.name}|${dateStr(y,m,d)}`;
+  const extra=await loadExtra(pwKey);
+  const curPw=extra.passwords&&extra.passwords.length?extra.passwords[0]:null;
+  let pwHtml=`<div class="d-section-title" style="margin-top:4px;">🔑 도어락 비밀번호</div>
+  <div class="pw-current-box">
+    <div class="pw-display-row">
+      <div class="pw-display${curPw?'':' empty'}">${curPw?curPw.pw:'비밀번호 없음'}</div>
+      <button class="pw-edit-btn" id="pwEditBtn">수정</button>
+    </div>
+    <div class="pw-edit-row" id="pwEditRow" style="display:none;">
+      <input class="pw-input" id="pwInput" placeholder="새 비밀번호 입력" maxlength="20">
+      <button class="pw-save-btn" id="pwSaveBtn">저장</button>
+    </div>`;
+  if(extra.passwords&&extra.passwords.length>1){
+    pwHtml+=`<div class="pw-history-title">이전 비밀번호</div>`;
+    extra.passwords.slice(1).forEach(p=>{pwHtml+=`<div class="pw-history-item"><span class="pw-history-pw">${p.pw}</span><span class="pw-history-meta">${p.date}</span></div>`;});
+  }
+  pwHtml+=`</div>`;
+  const memos=extra.memos||[];
+  let memoHtml=`<div class="d-section-title" style="margin-top:4px;">📝 메모</div>
+  <div class="memo-input-row" style="margin-bottom:8px;">
+    <textarea class="memo-textarea" id="memoInput" placeholder="이 예약에 대한 메모를 입력하세요..."></textarea>
+    <button class="memo-add-btn" id="memoAddBtn">추가</button>
+  </div><div id="memoList">`;
+  memos.forEach((memo,i)=>{
+    memoHtml+=`<div class="memo-item"><div class="memo-item-body"><div class="memo-item-text">${memo.text.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div><div class="memo-item-date">${memo.date}</div></div><div style="display:flex;flex-direction:column;gap:4px;"><button class="memo-edit-btn" data-idx="${i}">✎</button><button class="memo-del" data-idx="${i}">✕</button></div></div>`;
+  });
+  memoHtml+=`</div>`;
+  document.getElementById('detailBody').innerHTML=obHtml+bkHtml+pwHtml+memoHtml;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('pwEditBtn').onclick=()=>{const row=document.getElementById('pwEditRow');row.style.display=row.style.display==='none'?'flex':'none';if(row.style.display==='flex')document.getElementById('pwInput').focus();};
+  document.getElementById('pwSaveBtn').onclick=()=>{
+    const val=document.getElementById('pwInput').value.trim();if(!val)return;
+    const ex=getExtra(pwKey);if(!ex.passwords)ex.passwords=[];
+    ex.passwords.unshift({pw:val,date:nowStr()});if(ex.passwords.length>10)ex.passwords=ex.passwords.slice(0,10);
+    setExtra(pwKey,ex);showToast('비밀번호 저장됨 🔑');openDetail(ri,y,m,d);
+  };
+  document.getElementById('pwInput').onkeydown=e=>{if(e.key==='Enter')document.getElementById('pwSaveBtn').click();};
+  document.getElementById('memoAddBtn').onclick=()=>{
+    const text=document.getElementById('memoInput').value.trim();if(!text)return;
+    const ex=getExtra(pwKey);if(!ex.memos)ex.memos=[];
+    ex.memos.unshift({text,date:nowStr()});setExtra(pwKey,ex);openDetail(ri,y,m,d);
+  };
+  document.querySelectorAll('.memo-del').forEach(btn=>{
+    btn.onclick=()=>{const idx=+btn.dataset.idx;const ex=getExtra(pwKey);ex.memos.splice(idx,1);setExtra(pwKey,ex);openDetail(ri,y,m,d);};
+  });
+  document.querySelectorAll('.memo-edit-btn').forEach(btn=>{
+    btn.onclick=()=>{
+      const idx=+btn.dataset.idx;const ex=getExtra(pwKey);const memo=ex.memos[idx];
+      const item=btn.closest('.memo-item');if(item.querySelector('.memo-edit-ta'))return;
+      const body=item.querySelector('.memo-item-body');
+      body.innerHTML=`<textarea class="memo-edit-ta" style="width:100%;min-height:60px;padding:8px 10px;font-size:13px;background:var(--bg);border:1px solid var(--navy);border-radius:var(--r);color:var(--text);resize:vertical;font-family:'DM Sans',sans-serif;outline:none;">${memo.text}</textarea>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <button style="flex:1;padding:7px;font-size:12px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);cursor:pointer;" id="ms_${idx}">저장</button>
+        <button style="padding:7px 12px;font-size:12px;background:none;border:1px solid var(--border2);border-radius:var(--r);color:var(--text2);cursor:pointer;" id="mc_${idx}">취소</button>
+      </div>`;
+      document.getElementById(`ms_${idx}`).onclick=()=>{const newText=body.querySelector('textarea').value.trim();if(!newText)return;const ex=getExtra(pwKey);ex.memos[idx]={text:newText,date:nowStr()+' (수정됨)'};setExtra(pwKey,ex);openDetail(ri,y,m,d);};
+      document.getElementById(`mc_${idx}`).onclick=()=>openDetail(ri,y,m,d);
+    };
+  });
+}
+
+// ── BLOCK PANEL ──
+function renderBlockPanel(){
+  const sel=document.getElementById('blockRoom');
+  sel.innerHTML='<option value="">호실 선택</option>'+rooms.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
+  renderBlockList();
+}
+function renderBlockList(){
+  const list=document.getElementById('blockList');
+  document.getElementById('blockCount').textContent=manualBlocks.length;
+  if(!manualBlocks.length){list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;">등록된 블락이 없어요.</div>';return;}
+  list.innerHTML=manualBlocks.map((bl,i)=>`
+    <div class="block-item">
+      <div class="room-dot" style="background:${rooms.find(r=>r.name===bl.roomName)?.color||'#666'}"></div>
+      <div class="block-item-info">
+        <div class="block-item-dates">🔒 ${bl.roomName} · ${dateStr(bl.startY,bl.startM,bl.startD)} ~ ${dateStr(bl.endY,bl.endM,bl.endD)}</div>
+        ${bl.reason?`<div class="block-item-reason">${bl.reason}</div>`:''}
+      </div>
+      <button class="block-del" data-idx="${i}">✕</button>
+    </div>`).join('');
+  list.querySelectorAll('.block-del').forEach(btn=>{
+    btn.onclick=()=>{manualBlocks.splice(+btn.dataset.idx,1);saveBlocks();render();renderBlockList();showToast('블락 해제됨');};
+  });
+}
+
+// ── SETTINGS ──
+function renderRoomList(){
+  const list=document.getElementById('roomList');
+  document.getElementById('roomCount').textContent=rooms.length;
+  if(!rooms.length){list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;">아직 등록된 호실이 없어요.</div>';renderExportUrls();return;}
+  list.innerHTML=`<div class="reorder-hint">⠿ 드래그로 순서 변경</div>`+rooms.map((r,i)=>`
+    <div class="room-item" draggable="true" data-idx="${i}">
+      <div class="drag-handle">⠿</div>
+      <div class="room-item-dot" style="background:${r.color}"></div>
+      <div class="room-item-info">
+        <div class="room-item-name">${r.name} ${(r.url||r.bkUrl||r.trUrl||r.lvUrl)?'<span class="status-pill">연동됨</span>':''}</div>
+        <div class="room-item-url">${[r.url?'✈':'',r.bkUrl?'🏨':'',r.trUrl?'🌐':'',r.lvUrl?'🏡':''].filter(Boolean).join(' ')||'미연동'}</div>
+      </div>
+      <button class="room-edit-btn" data-edit="${i}">✎</button>
+      <button class="room-del" data-idx="${i}">✕</button>
+    </div>`).join('');
+  list.querySelectorAll('.room-edit-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const idx=+btn.dataset.edit,r=rooms[idx];
+      list.querySelector('.room-edit-form')?.remove();
+      const form=document.createElement('div');
+      form.className='room-edit-form';
+      form.innerHTML=`
+        <input class="ical-input" id="en_${idx}" value="${r.name}" placeholder="호실명" maxlength="20">
+        <input class="ical-input" id="eu_${idx}" value="${r.url||''}" placeholder="✈ Airbnb iCal URL" autocomplete="off">
+        <input class="ical-input" id="eb_${idx}" value="${r.bkUrl||''}" placeholder="🏨 Booking.com iCal URL" autocomplete="off">
+        <input class="ical-input" id="et_${idx}" value="${r.trUrl||''}" placeholder="🌐 Trip.com iCal URL" autocomplete="off">
+        <input class="ical-input" id="el_${idx}" value="${r.lvUrl||''}" placeholder="🏡 리브애니웨어 iCal URL" autocomplete="off">
+        <div class="room-edit-actions">
+          <button class="room-edit-save" data-save="${idx}">저장</button>
+          <button class="room-edit-cancel">취소</button>
+        </div>`;
+      btn.closest('.room-item').after(form);
+      form.querySelector(`#en_${idx}`).focus();
+      form.querySelector('.room-edit-cancel').onclick=()=>form.remove();
+      form.querySelector('.room-edit-save').onclick=()=>{
+        const newName=document.getElementById(`en_${idx}`).value.trim();if(!newName)return;
+        rooms[idx].name=newName;rooms[idx].url=document.getElementById(`eu_${idx}`).value.trim();
+        rooms[idx].bkUrl=document.getElementById(`eb_${idx}`).value.trim();rooms[idx].trUrl=document.getElementById(`et_${idx}`).value.trim();
+        rooms[idx].lvUrl=document.getElementById(`el_${idx}`).value.trim();
+        saveRooms();form.remove();renderRoomList();render();showToast('저장됐어요 ✓');
+      };
+    });
+  });
+  list.querySelectorAll('.room-del').forEach(btn=>{
+    btn.addEventListener('click',e=>{rooms.splice(+e.currentTarget.dataset.idx,1);saveRooms();render();renderRoomList();});
+  });
+  const items=list.querySelectorAll('.room-item[draggable]');
+  items.forEach(item=>{
+    item.addEventListener('dragstart',e=>{dragSrcIdx=+item.dataset.idx;setTimeout(()=>item.classList.add('dragging'),0);e.dataTransfer.effectAllowed='move';});
+    item.addEventListener('dragend',()=>{item.classList.remove('dragging');list.querySelectorAll('.room-item').forEach(el=>el.classList.remove('drag-over'));});
+    item.addEventListener('dragover',e=>{e.preventDefault();list.querySelectorAll('.room-item').forEach(el=>el.classList.remove('drag-over'));item.classList.add('drag-over');});
+    item.addEventListener('drop',e=>{e.preventDefault();const ti=+item.dataset.idx;if(dragSrcIdx===null||dragSrcIdx===ti)return;const moved=rooms.splice(dragSrcIdx,1)[0];rooms.splice(ti,0,moved);dragSrcIdx=null;saveRooms();render();renderRoomList();});
+  });
+  let tsi=null;
+  items.forEach(item=>{
+    item.addEventListener('touchstart',e=>{tsi=+item.dataset.idx;item.classList.add('dragging');},{passive:true});
+    item.addEventListener('touchmove',e=>{e.preventDefault();const touch=e.touches[0];const el=document.elementFromPoint(touch.clientX,touch.clientY);const target=el&&el.closest('.room-item[draggable]');list.querySelectorAll('.room-item').forEach(x=>x.classList.remove('drag-over'));if(target&&target!==item)target.classList.add('drag-over');},{passive:false});
+    item.addEventListener('touchend',e=>{item.classList.remove('dragging');const touch=e.changedTouches[0];const el=document.elementFromPoint(touch.clientX,touch.clientY);const target=el&&el.closest('.room-item[draggable]');if(target&&tsi!==null){const ti=+target.dataset.idx;if(tsi!==ti){const moved=rooms.splice(tsi,1)[0];rooms.splice(ti,0,moved);saveRooms();render();renderRoomList();}}tsi=null;list.querySelectorAll('.room-item').forEach(x=>x.classList.remove('drag-over'));});
+  });
+  renderExportUrls();
+}
+
+function renderExportUrls(){
+  const el=document.getElementById('exportUrlList');
+  if(!rooms.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);">호실을 먼저 추가해주세요.</div>';return;}
+  el.innerHTML=rooms.map(r=>{
+    const url=`${ICAL_BASE}/${encodeURIComponent(r.name)}`;
+    return `<div class="export-url-box">
+      <div class="export-url-label"><div class="room-dot" style="background:${r.color};display:inline-block;margin-right:4px;"></div>${r.name}</div>
+      <div class="export-url-text">${url}</div>
+      <button class="copy-btn" onclick="copyUrl('${url}',this)">📋 URL 복사</button>
+    </div>`;
+  }).join('');
+}
+
+function copyUrl(url,btn){
+  navigator.clipboard.writeText(url).then(()=>{btn.textContent='✓ 복사됨!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋 URL 복사';btn.classList.remove('copied');},2000);showToast('URL 복사됨! ✓');}).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=url;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    btn.textContent='✓ 복사됨!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='📋 URL 복사';btn.classList.remove('copied');},2000);showToast('URL 복사됨! ✓');
+  });
+}
+
+// ── EVENTS ──
+document.getElementById('prevBtn').onclick=()=>{curM--;if(curM<0){curM=11;curY--;}render();};
+document.getElementById('nextBtn').onclick=()=>{curM++;if(curM>11){curM=0;curY++;}render();};
+document.getElementById('todayBtn').onclick=()=>{
+  const t=today();curY=t.y;curM=t.m;
+  render();
+  scrollToToday();
+};
+['month','week','multi'].forEach(v=>{
+  document.getElementById(v+'Tab').onclick=()=>{
+    viewMode=v;
+    ['month','week','multi'].forEach(x=>document.getElementById(x+'Tab').classList.remove('active'));
+    document.getElementById(v+'Tab').classList.add('active');
+    render();
+    if(v==='month') setTimeout(scrollToToday, 100);
+  };
+});
+// syncBtn은 배너에 통합됨
+document.getElementById('settingsBtn').onclick=()=>{document.getElementById('settingsPanel').classList.add('open');renderRoomList();};
+
+// 날짜 검색
+document.getElementById('dateSearchBtn').onclick=()=>{
+  const panel=document.getElementById('dateSearchPanel');
+  panel.classList.toggle('open');
+  if(panel.classList.contains('open')){
+    const t=today();
+    const pad=n=>String(n).padStart(2,'0');
+    document.getElementById('dateSearchInput').value=`${t.y}-${pad(t.m+1)}-${pad(t.d)}`;
+    setTimeout(()=>document.getElementById('dateSearchInput').focus(),200);
+  }
+};
+document.getElementById('dateSearchClose').onclick=()=>{
+  document.getElementById('dateSearchPanel').classList.remove('open');
+};
+document.getElementById('dateSearchGo').onclick=()=>{
+  const val=document.getElementById('dateSearchInput').value;
+  if(!val) return;
+  const[y,mo,d]=val.split('-').map(Number);
+  document.getElementById('dateSearchPanel').classList.remove('open');
+  // 월간/주간이면 해당 달로 이동
+  if(viewMode==='month'||viewMode==='week'){curY=y;curM=mo-1;render();}
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{
+      const cell=document.querySelector(`[data-y="${y}"][data-m="${mo-1}"][data-d="${d}"]`);
+      if(cell){
+        cell.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+        const ci=cell.querySelector('.cell-inner');
+        if(ci){ci.style.outline='2px solid #38bdf8';ci.style.outlineOffset='-2px';setTimeout(()=>{ci.style.outline='';ci.style.outlineOffset='';},2000);}
+        hoverBanner(y,mo-1,d);
+      } else {
+        showToast(`${mo}월 ${d}일을 찾을 수 없어요`);
+      }
+    },150);
+  });
+};
+document.getElementById('dateSearchInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter') document.getElementById('dateSearchGo').click();
+  if(e.key==='Escape') document.getElementById('dateSearchPanel').classList.remove('open');
+});
+document.getElementById('closeSettings').onclick=()=>document.getElementById('settingsPanel').classList.remove('open');
+document.getElementById('settingsPanel').addEventListener('click',e=>{if(e.target===document.getElementById('settingsPanel'))document.getElementById('settingsPanel').classList.remove('open');});
+document.getElementById('blockBtn').onclick=()=>{document.getElementById('blockPanel').classList.add('open');renderBlockPanel();};
+document.getElementById('closeBlock').onclick=()=>document.getElementById('blockPanel').classList.remove('open');
+document.getElementById('blockPanel').addEventListener('click',e=>{if(e.target===document.getElementById('blockPanel'))document.getElementById('blockPanel').classList.remove('open');});
+document.getElementById('closeDetail').onclick=()=>document.getElementById('detailPanel').classList.remove('open');
+document.getElementById('detailPanel').addEventListener('click',e=>{if(e.target===document.getElementById('detailPanel'))document.getElementById('detailPanel').classList.remove('open');});
+
+document.getElementById('addRoomBtn').onclick=()=>{
+  const name=document.getElementById('inputName').value.trim();
+  if(!name){document.getElementById('inputName').focus();return;}
+  if(rooms.length>=9){showToast('최대 9개 호실까지 가능해요');return;}
+  rooms.push({name,url:document.getElementById('inputUrl').value.trim(),bkUrl:document.getElementById('inputBkUrl').value.trim(),trUrl:document.getElementById('inputTrUrl').value.trim(),lvUrl:document.getElementById('inputLvUrl').value.trim(),color:COLORS[rooms.length%COLORS.length],bookings:[],bkBookings:[],trBookings:[],lvBookings:[]});
+  saveRooms();
+  ['inputName','inputUrl','inputBkUrl','inputTrUrl','inputLvUrl'].forEach(id=>document.getElementById(id).value='');
+  render();renderRoomList();showToast('호실 추가됐어요 ✓');
+};
+
+document.getElementById('blockAddBtn').onclick=()=>{
+  const roomName=document.getElementById('blockRoom').value;
+  const startStr=document.getElementById('blockStart').value;
+  const endStr=document.getElementById('blockEnd').value;
+  const reason=document.getElementById('blockReason').value.trim();
+  if(!roomName||!startStr||!endStr){showToast('호실과 날짜를 선택해주세요');return;}
+  const[sy,sm,sd]=startStr.split('-').map(Number);
+  const[ey,em,ed]=endStr.split('-').map(Number);
+  if(new Date(sy,sm-1,sd)>new Date(ey,em-1,ed)){showToast('종료일이 시작일보다 앞서요');return;}
+  manualBlocks.push({roomName,startY:sy,startM:sm-1,startD:sd,endY:ey,endM:em-1,endD:ed,reason});
+  saveBlocks();render();renderBlockList();showToast('블락 추가됐어요 🔒');
+};
+
+// ── INIT ──
+async function init(){
+  const t=today();curY=t.y;curM=t.m;
+  await loadBlocks();
+  await loadRooms();
+  render();
+  await triggerSync();
+  // 헤더 높이 동적 계산
+  const hdr=document.querySelector('.app-header');
+  if(hdr){
+    const hh=hdr.offsetHeight;
+    document.documentElement.style.setProperty('--header-h', hh+'px');
+    const banner=document.getElementById('todayBanner');
+    if(banner){
+      const bh=hh+banner.offsetHeight;
+      document.documentElement.style.setProperty('--banner-bottom', bh+'px');
+    }
+  }
+}
+init();
+</script>
+</body>
+</html>
