@@ -324,6 +324,10 @@ thead { position: sticky; top: 0; z-index: 10; }
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 
+/* 열 하이라이트 - 오늘 테두리와 동일한 스타일로 */
+.day-th.col-hover { color: #38bdf8 !important; font-weight: 600; }
+.day-cell.col-hover .cell-inner { outline: 2px solid #38bdf8; outline-offset: -2px; border-radius: 5px; }
+
 /* 배너 호버 날짜 표시 */
 .today-banner { transition: background 0.15s; }
 .today-banner.hover-mode { background: rgba(30,58,138,0.06); }
@@ -694,15 +698,28 @@ function resetBanner(){
   updateTodayBanner();
 }
 
-// 호버/탭 으로 배너 날짜 업데이트
+// 호버/탭 으로 배너 날짜 업데이트 + 열 하이라이트
 let _bannerResetTimer=null;
+
+function highlightCol(y,m,d){
+  // 기존 하이라이트 제거
+  document.querySelectorAll('.col-hover').forEach(el=>el.classList.remove('col-hover'));
+  if(y===null) return;
+  // 해당 날짜의 th, td 모두 하이라이트
+  document.querySelectorAll(`[data-y="${y}"][data-m="${m}"][data-d="${d}"]`).forEach(el=>el.classList.add('col-hover'));
+}
+
 function hoverBanner(y,m,d){
   clearTimeout(_bannerResetTimer);
   updateTodayBanner(y,m,d,true);
+  highlightCol(y,m,d);
 }
 function leaveBanner(){
   clearTimeout(_bannerResetTimer);
-  _bannerResetTimer=setTimeout(()=>updateTodayBanner(),800);
+  _bannerResetTimer=setTimeout(()=>{
+    updateTodayBanner();
+    highlightCol(null,null,null);
+  },800);
 }
 
 // ── OVERBOOKING ──
@@ -737,7 +754,7 @@ function buildDayRow(days,y,m,extra=''){
     const dow=new Date(y,m,d).getDay();
     const isT=y===t2.y&&m===t2.m&&d===t2.d;
     const cls=isT?'today-hd':dow===0?'sun':dow===6?'sat':'';
-    h+=`<th class="day-th ${cls}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
+    h+=`<th class="day-th ${cls}" data-y="${y}" data-m="${m}" data-d="${d}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
   }
   return h+'</tr>';
 }
@@ -838,7 +855,7 @@ function renderWeek(){
       const dow=new Date(curY,curM,d).getDay();
       const isT=curY===t2.y&&curM===t2.m&&d===t2.d;
       const cls=isT?'today-hd':dow===0?'sun':dow===6?'sat':'';
-      dayRow+=`<th class="day-th ${cls}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
+      dayRow+=`<th class="day-th ${cls}" data-y="${curY}" data-m="${curM}" data-d="${d}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
     });
     dayRow+='</tr>';
     let bodyRows='';
@@ -897,7 +914,7 @@ function renderMulti(){
       const dow=new Date(y,m,d).getDay();
       const isT=y===t2.y&&m===t2.m&&d===t2.d;
       const cls=isT?'today-hd':dow===0?'sun':dow===6?'sat':'';
-      dayRow+=`<th class="day-th ${cls}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
+      dayRow+=`<th class="day-th ${cls}" data-y="${y}" data-m="${m}" data-d="${d}">${d}<br><span class="dname">${DAY_KO[dow]}</span></th>`;
     }
   });
   dayRow+='</tr>';
