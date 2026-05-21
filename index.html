@@ -994,7 +994,7 @@ function attachCellClicks(){
     });
     cell.addEventListener('mouseleave',()=>leaveBanner());
 
-    // 모바일: 롱프레스
+    // 모바일: 롱프레스 + 드래그로 열 이동
     cell.addEventListener('touchstart',e=>{
       _isLongPress=false;
       const y=+cell.dataset.y,m=+cell.dataset.m,d=+cell.dataset.d;
@@ -1002,7 +1002,6 @@ function attachCellClicks(){
         _isLongPress=true;
         if(!isNaN(y)&&!isNaN(m)&&!isNaN(d)){
           hoverBanner(y,m,d);
-          // 진동 피드백 (지원 기기)
           if(navigator.vibrate) navigator.vibrate(30);
         }
       },400);
@@ -1011,8 +1010,16 @@ function attachCellClicks(){
       clearTimeout(_lpTimer);
       if(_isLongPress) leaveBanner();
     },{passive:true});
-    cell.addEventListener('touchmove',()=>{
-      clearTimeout(_lpTimer);
+    cell.addEventListener('touchmove',e=>{
+      if(!_isLongPress){clearTimeout(_lpTimer);return;}
+      // 롱프레스 중 드래그 → 손가락 위치 셀 감지
+      const touch=e.touches[0];
+      const el=document.elementFromPoint(touch.clientX,touch.clientY);
+      const target=el&&(el.closest('.day-cell')||el.closest('.day-th[data-y]'));
+      if(target&&target.dataset.y){
+        const ty=+target.dataset.y,tm=+target.dataset.m,td=+target.dataset.d;
+        if(!isNaN(ty)&&!isNaN(tm)&&!isNaN(td)) hoverBanner(ty,tm,td);
+      }
     },{passive:true});
 
     // 클릭 (PC탭 + 모바일 짧은탭)
