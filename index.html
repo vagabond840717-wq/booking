@@ -679,19 +679,19 @@ function updateTodayBanner(y, m, d, isHover=false){
   const t=today(); const isToday=(y===t.y&&m===t.m&&d===t.d);
   const label=isToday?'오늘':isHover?`${m+1}월 ${d}일`:`${m+1}월 ${d}일`;
   const banner=document.getElementById('todayBanner');
-  banner.classList.toggle('hover-mode', isHover&&!isToday);
+  // 배경은 항상 흰색 유지
   banner.innerHTML=`
-    <div>
-      <div class="today-date" style="margin-bottom:2px;">${isToday?'오늘':isHover?'📅 선택일':''}</div>
-      <div class="today-date"><strong>${m+1}월 ${d}일 (${dname})</strong></div>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;">
+    <div style="display:flex;align-items:center;gap:12px;flex:1;">
+      <div>
+        <div class="today-date" style="margin-bottom:2px;">${isToday?'오늘':isHover?'📅 선택일':''}</div>
+        <div class="today-date"><strong>${m+1}월 ${d}일 (${dname})</strong></div>
+      </div>
       <div class="today-counts">
         <div class="today-count"><div class="num out">${outCount}</div><div class="lbl">체크아웃</div></div>
         <div class="today-count"><div class="num inc">${inCount}</div><div class="lbl">체크인</div></div>
       </div>
-      ${isToday?`<button class="sync-btn-fixed" onclick="triggerSync()"><span id="syncIcon">↻</span></button>`:'<button class="sync-btn-fixed" style="background:var(--surface2);border-color:var(--border2);" onclick="resetBanner()">↩</button>'}
-    </div>`;
+    </div>
+    ${isToday?`<button class="sync-btn-fixed" onclick="triggerSync()"><span id="syncIcon">↻</span></button>`:'<button class="sync-btn-fixed" style="background:var(--surface2);border-color:var(--border2);" onclick="resetBanner()">↩</button>'}`;
 }
 
 function resetBanner(){
