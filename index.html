@@ -975,7 +975,7 @@ function goToDate(dateStr){
 
 // ── DETAIL ──
 function attachCellClicks(){
-  // 날짜 헤더(th)에도 hover 이벤트
+  // 날짜 헤더(th) hover (PC)
   document.querySelectorAll('.day-th[data-y]').forEach(th=>{
     th.addEventListener('mouseenter',()=>{
       const y=+th.dataset.y,m=+th.dataset.m,d=+th.dataset.d;
@@ -985,22 +985,44 @@ function attachCellClicks(){
   });
 
   document.querySelectorAll('.day-cell').forEach(cell=>{
-    // PC: 마우스 호버 → 배너 업데이트
+    let _lpTimer=null, _isLongPress=false;
+
+    // PC: 마우스 호버
     cell.addEventListener('mouseenter',()=>{
       const y=+cell.dataset.y,m=+cell.dataset.m,d=+cell.dataset.d;
       if(!isNaN(y)&&!isNaN(m)&&!isNaN(d)) hoverBanner(y,m,d);
     });
     cell.addEventListener('mouseleave',()=>leaveBanner());
 
-    // 클릭
+    // 모바일: 롱프레스
+    cell.addEventListener('touchstart',e=>{
+      _isLongPress=false;
+      const y=+cell.dataset.y,m=+cell.dataset.m,d=+cell.dataset.d;
+      _lpTimer=setTimeout(()=>{
+        _isLongPress=true;
+        if(!isNaN(y)&&!isNaN(m)&&!isNaN(d)){
+          hoverBanner(y,m,d);
+          // 진동 피드백 (지원 기기)
+          if(navigator.vibrate) navigator.vibrate(30);
+        }
+      },400);
+    },{passive:true});
+    cell.addEventListener('touchend',()=>{
+      clearTimeout(_lpTimer);
+      if(_isLongPress) leaveBanner();
+    },{passive:true});
+    cell.addEventListener('touchmove',()=>{
+      clearTimeout(_lpTimer);
+    },{passive:true});
+
+    // 클릭 (PC탭 + 모바일 짧은탭)
     cell.addEventListener('click',e=>{
       e.stopPropagation();
+      if(_isLongPress){_isLongPress=false;return;} // 롱프레스는 클릭 무시
       const ri=cell.dataset.ri;
       if(ri===undefined) return;
       const y=+cell.dataset.y,m=+cell.dataset.m,d=+cell.dataset.d;
-      // 모바일: 탭 시 배너 잠깐 업데이트 후 상세 열기
-      hoverBanner(y,m,d);
-      setTimeout(()=>openDetail(+ri,y,m,d),120);
+      openDetail(+ri,y,m,d);
     });
   });
 }
