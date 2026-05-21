@@ -25,7 +25,7 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html { background: var(--bg); }
-body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
 .app-header {
   position: sticky; top: 0; z-index: 100;
@@ -100,10 +100,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .room-th-inner { display: flex; align-items: center; gap: 5px; }
 .room-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
-.io-th { text-align: center; padding: 0 1px 4px; white-space: nowrap; vertical-align: bottom; }
-.io-cell { font-size: 9px; font-family: 'DM Mono', monospace; font-weight: 600; white-space: nowrap; line-height: 1.2; }
-.io-in { color: var(--ab-in); } .io-out { color: var(--ab-out); }
-.io-both { display: flex; flex-direction: column; align-items: center; }
+
 
 .day-th {
   min-width: 36px; font-size: 10px; color: var(--text3);
@@ -584,13 +581,7 @@ function calcDayCount(y,m,d){
   return{inCount,outCount};
 }
 
-function ioThHtml(y,m,d){
-  const{inCount,outCount}=calcDayCount(y,m,d);
-  if(!inCount&&!outCount) return '<th class="io-th"></th>';
-  if(inCount&&outCount) return `<th class="io-th"><div class="io-cell io-both"><span class="io-in">in${inCount}</span><span style="font-size:8px;color:var(--text3);">/</span><span class="io-out">out${outCount}</span></div></th>`;
-  if(inCount) return `<th class="io-th"><span class="io-cell io-in">in${inCount}</span></th>`;
-  return `<th class="io-th"><span class="io-cell io-out">out${outCount}</span></th>`;
-}
+
 
 // ── TODAY BANNER ──
 function updateTodayBanner(){
@@ -622,18 +613,14 @@ function checkOverbooking(){
   }
   const el=document.getElementById('obAlerts');
   if(!alerts.length){el.innerHTML='';return;}
-  el.innerHTML=alerts.slice(0,5).map(a=>`<div class="ob-alert"><div class="ob-alert-text">⚠️ 오버부킹 가능성: <strong>${a.room}</strong> ${a.date}</div></div>`).join('');
+  el.innerHTML=alerts.slice(0,5).map(a=>`<div class="ob-alert" onclick="goToDate('${a.date}')" style="cursor:pointer;"><div class="ob-alert-text">⚠️ 오버부킹 가능성: <strong>${a.room}</strong> ${a.date} <span style="font-size:10px;opacity:0.7;">→ 클릭해서 이동</span></div></div>`).join('');
 }
 
 // ── RENDER ──
 function stickyTh(extra=''){return `<th class="room-th" style="position:sticky;left:0;background:var(--bg);z-index:5;${extra}"></th>`;}
 function stickyTd(r){return `<td class="room-th" style="position:sticky;left:0;background:var(--bg);z-index:4;"><div class="room-th-inner"><div class="room-dot" style="background:${r.color}"></div>${r.name}</div></td>`;}
 
-function buildIoRow(days,y,m,extra=''){
-  let h=`<tr>${stickyTh(extra)}`;
-  for(let d=1;d<=days;d++) h+=ioThHtml(y,m,d);
-  return h+'</tr>';
-}
+
 function buildDayRow(days,y,m,extra=''){
   const t2=today();
   let h=`<tr>${stickyTh(extra)}`;
@@ -664,7 +651,7 @@ function buildBodyRows(days,y,m){
 function renderMonth(){
   if(!rooms.length) return emptyState();
   const days=daysIn(curY,curM);
-  return `<div class="cal-scroll"><table class="cal-table"><thead>${buildIoRow(days,curY,curM)}${buildDayRow(days,curY,curM)}</thead><tbody>${buildBodyRows(days,curY,curM)}</tbody></table></div>`;
+  return `<div class="cal-scroll"><table class="cal-table"><thead>${buildDayRow(days,curY,curM)}</thead><tbody>${buildBodyRows(days,curY,curM)}</tbody></table></div>`;
 }
 
 function renderWeek(){
@@ -681,8 +668,8 @@ function renderWeek(){
     const ws=week[0],we=week[week.length-1];
     // io row
     const t2=today();
-    let ioRow=`<tr>${stickyTh()}`;
-    week.forEach(d=>{ ioRow+=ioThHtml(curY,curM,d); });
+    let ioRow='';
+
     ioRow+='</tr>';
     let dayRow=`<tr>${stickyTh()}`;
     week.forEach(d=>{
@@ -718,7 +705,7 @@ function renderWeek(){
       const dow=new Date(curY,curM,+d).getDay();
       return `<div class="checkout-card"><strong>${curM+1}/${d}(${DAY_KO[dow]}) 체크아웃</strong><br><span>${coMap[d].join(' · ')}</span></div>`;
     }).join('');
-    html+=`<div class="week-block"><div class="week-label">${curM+1}월 ${ws}일 — ${we}일</div><div class="cal-scroll"><table class="cal-table"><thead>${ioRow}${dayRow}</thead><tbody>${bodyRows}</tbody></table></div>${coCards?`<div class="checkout-cards">${coCards}</div>`:''}</div>`;
+    html+=`<div class="week-block"><div class="week-label">${curM+1}월 ${ws}일 — ${we}일</div><div class="cal-scroll"><table class="cal-table"><thead>${dayRow}</thead><tbody>${bodyRows}</tbody></table></div>${coCards?`<div class="checkout-cards">${coCards}</div>`:''}</div>`;
   }
   return html;
 }
@@ -726,9 +713,10 @@ function renderWeek(){
 function renderMulti(){
   if(!rooms.length) return emptyState();
   const t2=today();
+  // 연속뷰는 항상 오늘 달 기준으로 6개월
   const months=[];
   for(let i=0;i<MONTHS_TO_SHOW;i++){
-    let y=curY,m=curM+i;
+    let y=t2.y,m=t2.m+i;
     while(m>11){m-=12;y++;}
     months.push({y,m});
   }
@@ -738,8 +726,8 @@ function renderMulti(){
     monthRow+=`<th colspan="${days}" class="multi-month-label">${y}.${String(m+1).padStart(2,'0')}</th>`;
   });
   monthRow+='</tr>';
-  let ioRow=`<tr>${stickyTh('z-index:6;')}`;
-  months.forEach(({y,m})=>{ for(let d=1;d<=daysIn(y,m);d++) ioRow+=ioThHtml(y,m,d); });
+  let ioRow='';
+
   ioRow+='</tr>';
   let dayRow=`<tr>${stickyTh('z-index:6;')}`;
   months.forEach(({y,m})=>{
@@ -764,7 +752,7 @@ function renderMulti(){
     });
     bodyRows+='</tr>';
   }
-  return `<div class="cal-scroll"><table class="cal-table"><thead>${monthRow}${ioRow}${dayRow}</thead><tbody>${bodyRows}</tbody></table></div>`;
+  return `<div class="cal-scroll"><table class="cal-table"><thead>${monthRow}${dayRow}</thead><tbody>${bodyRows}</tbody></table></div>`;
 }
 
 function emptyState(){
@@ -788,6 +776,28 @@ function scrollToToday(){
   requestAnimationFrame(()=>{
     const tc=document.querySelector('.today-ring');
     if(tc){const se=tc.closest('.cal-scroll');if(se){const cr=tc.getBoundingClientRect(),sr=se.getBoundingClientRect();se.scrollBy({left:cr.left-sr.left-sr.width*0.25,behavior:'smooth'});}}
+  });
+}
+
+function goToDate(dateStr){
+  // dateStr: "2026.05.21" 형식
+  const parts=dateStr.split('.');
+  const y=+parts[0],m=+parts[1]-1,d=+parts[2];
+  // 연속뷰로 전환 (curY/curM 변경 없이)
+  viewMode='multi';
+  ['month','week','multi'].forEach(x=>document.getElementById(x+'Tab').classList.remove('active'));
+  document.getElementById('multiTab').classList.add('active');
+  render();
+  // 해당 날짜 셀로 스크롤
+  requestAnimationFrame(()=>{
+    const cell=document.querySelector(`[data-y="${y}"][data-m="${m}"][data-d="${d}"]`);
+    if(cell){
+      const se=cell.closest('.cal-scroll');
+      if(se){
+        const cr=cell.getBoundingClientRect(),sr=se.getBoundingClientRect();
+        se.scrollBy({left:cr.left-sr.left-sr.width*0.3,behavior:'smooth'});
+      }
+    }
   });
 }
 
@@ -1017,7 +1027,11 @@ function copyUrl(url,btn){
 // ── EVENTS ──
 document.getElementById('prevBtn').onclick=()=>{curM--;if(curM<0){curM=11;curY--;}render();};
 document.getElementById('nextBtn').onclick=()=>{curM++;if(curM>11){curM=0;curY++;}render();};
-document.getElementById('todayBtn').onclick=()=>{const t=today();curY=t.y;curM=t.m;render();};
+document.getElementById('todayBtn').onclick=()=>{
+  const t=today();curY=t.y;curM=t.m;
+  render();
+  scrollToToday();
+};
 ['month','week','multi'].forEach(v=>{
   document.getElementById(v+'Tab').onclick=()=>{
     viewMode=v;
