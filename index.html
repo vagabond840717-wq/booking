@@ -105,7 +105,12 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 }
 .ob-alert-text { font-size: 12px; color: var(--ob-color); line-height: 1.6; font-weight: 500; }
 
-.cal-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
+.cal-scroll {
+  overflow-x: auto; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -16px; padding: 0 16px;
+  max-height: calc(100vh - var(--banner-bottom, 133px) - 80px);
+}
 .cal-table { border-collapse: collapse; font-size: 11px; }
 .room-th {
   font-size: 11px; font-weight: 500; color: var(--text2);
@@ -115,12 +120,16 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .room-th-inner { display: flex; align-items: center; gap: 5px; }
 .room-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
-
+/* 날짜 헤더: 세로 스크롤해도 항상 상단 고정 */
+thead { position: sticky; top: 0; z-index: 10; }
 
 .day-th {
   min-width: 36px; font-size: 10px; color: var(--text3);
-  text-align: center; padding-bottom: 6px; border-bottom: 1px solid var(--border2);
+  text-align: center; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border2);
   font-family: 'DM Mono', monospace;
+  background: var(--bg);
+  position: sticky; top: 0;
 }
 .day-th.sun { color: #dc2626; } .day-th.sat { color: var(--bk-out); }
 .day-th.today-hd { color: var(--navy); font-weight: 600; }
@@ -177,7 +186,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .checkout-card strong { color: var(--ab-out); font-weight: 600; }
 .checkout-card span { color: var(--text2); }
 
-.multi-month-label { font-size: 11px; color: var(--navy); font-family: 'DM Mono', monospace; font-weight: 600; padding: 0 6px 6px; white-space: nowrap; border-bottom: 1px solid var(--border2); border-left: 2px solid var(--navy); }
+.multi-month-label { font-size: 11px; color: var(--navy); font-family: 'DM Mono', monospace; font-weight: 600; padding: 0 6px 6px; white-space: nowrap; border-bottom: 1px solid var(--border2); border-left: 2px solid var(--navy); background: var(--bg); }
 
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 13px; line-height: 1.8; }
 .empty-state .big { font-size: 28px; margin-bottom: 10px; }
@@ -655,7 +664,7 @@ function checkOverbooking(){
 }
 
 // ── RENDER ──
-function stickyTh(extra=''){return `<th class="room-th" style="position:sticky;left:0;background:var(--bg);z-index:5;${extra}"></th>`;}
+function stickyTh(extra=''){return `<th class="room-th" style="position:sticky;left:0;top:0;background:var(--bg);z-index:20;${extra}"></th>`;}
 function stickyTd(r){return `<td class="room-th" style="position:sticky;left:0;background:var(--bg);z-index:4;"><div class="room-th-inner"><div class="room-dot" style="background:${r.color}"></div>${r.name}</div></td>`;}
 
 
