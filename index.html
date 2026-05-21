@@ -148,26 +148,27 @@ thead { position: sticky; top: 0; z-index: 10; }
 .c-empty { background: transparent; }
 .day-cell .cell-inner { border: 1px solid rgba(255,255,255,0.08); }
 .day-cell .c-empty   { border-color: rgba(255,255,255,0.1); }
-/* Airbnb — 숙박중: 차분한 벽돌, 아웃: 선명한 빨강, 인: 선명한 초록 */
+/* 체크아웃/인 공통 색상 (에어비앤비 기준) — 숙박중/1박(both)은 플랫폼별 */
+/* Airbnb */
 .c-occupied  { background: #8b2e1e; border-color: transparent !important; }
 .c-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
 .c-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
-.c-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); border-color: transparent !important; }
+.c-both      { background: #e5503a; color: #fff; border-color: transparent !important; }
 /* Booking.com */
 .c-bk-occupied { background: #1a3f7a; border-color: transparent !important; }
 .c-bk-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
-.c-bk-checkin   { background: #2e86c1; color: #fff; border-color: transparent !important; }
-.c-bk-both      { background: linear-gradient(90deg,#e5503a 50%,#2e86c1 50%); border-color: transparent !important; }
+.c-bk-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
+.c-bk-both      { background: #1a6fcc; color: #fff; border-color: transparent !important; }
 /* Trip.com */
 .c-tr-occupied { background: #7a3010; border-color: transparent !important; }
-.c-tr-checkout  { background: #d4571e; color: #fff; border-color: transparent !important; }
-.c-tr-checkin   { background: #e8873a; color: #fff; border-color: transparent !important; }
-.c-tr-both      { background: linear-gradient(90deg,#d4571e 50%,#e8873a 50%); border-color: transparent !important; }
+.c-tr-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-tr-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
+.c-tr-both      { background: #d4571e; color: #fff; border-color: transparent !important; }
 /* 리브애니웨어 */
 .c-lv-occupied { background: #4a1fa8; border-color: transparent !important; }
-.c-lv-checkout  { background: #7c3aed; color: #fff; border-color: transparent !important; }
-.c-lv-checkin   { background: #a855f7; color: #fff; border-color: transparent !important; }
-.c-lv-both      { background: linear-gradient(90deg,#7c3aed 50%,#a855f7 50%); border-color: transparent !important; }
+.c-lv-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-lv-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
+.c-lv-both      { background: #7c3aed; color: #fff; border-color: transparent !important; }
 /* 블락 */
 .c-bl-occupied { background: #2d333d; border-color: transparent !important; }
 .c-bl-block    { background: #3d4452; color: #c0c8d8; border-color: transparent !important; }
