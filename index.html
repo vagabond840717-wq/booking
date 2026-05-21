@@ -663,11 +663,8 @@ async function triggerSync() {
   const icon = document.getElementById('syncIcon');
   icon.classList.add('spin');
   document.getElementById('syncTime').textContent = '동기화 중...';
-  try {
-    await fetch(`${PROXY_URL}/sync`,{method:'POST'});
-    await loadBookingsFromKV();
-
-  } catch(e){}
+  try { await fetch(`${PROXY_URL}/sync`,{method:'POST'}); } catch(e){}
+  await loadBookingsFromKV();
   icon.classList.remove('spin');
   document.getElementById('syncTime').textContent = nowStr() + ' 기준';
   render();
