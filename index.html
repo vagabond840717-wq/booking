@@ -153,22 +153,22 @@ thead { position: sticky; top: 0; z-index: 10; }
 .c-occupied  { background: #8b2e1e; border-color: transparent !important; }
 .c-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
 .c-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
-.c-both      { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); color: #fff; border-color: transparent !important; }
 /* Booking.com */
 .c-bk-occupied { background: #1a3f7a; border-color: transparent !important; }
 .c-bk-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
 .c-bk-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
-.c-bk-both      { background: #1a6fcc; color: #fff; border-color: transparent !important; }
+.c-bk-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); color: #fff; border-color: transparent !important; }
 /* Trip.com */
 .c-tr-occupied { background: #7a3010; border-color: transparent !important; }
 .c-tr-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
 .c-tr-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
-.c-tr-both      { background: #d4571e; color: #fff; border-color: transparent !important; }
+.c-tr-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); color: #fff; border-color: transparent !important; }
 /* 리브애니웨어 */
 .c-lv-occupied { background: #4a1fa8; border-color: transparent !important; }
 .c-lv-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
 .c-lv-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
-.c-lv-both      { background: #7c3aed; color: #fff; border-color: transparent !important; }
+.c-lv-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); color: #fff; border-color: transparent !important; }
 /* 블락 */
 .c-bl-occupied { background: #2d333d; border-color: transparent !important; }
 .c-bl-block    { background: #3d4452; color: #c0c8d8; border-color: transparent !important; }
@@ -642,11 +642,13 @@ function cellClsAndLbl(room,d,y,m){
   const abE=ab==='empty',bkE=bk==='empty',trE=tr==='empty',lvE=lv==='empty',blE=bl==='empty';
   if(abE&&bkE&&trE&&lvE&&blE) return{cls:'c-empty',lbl:''};
   function io(ct){if(ct==='checkout')return 'out';if(ct==='checkin')return 'in';if(ct==='both')return '↕';return '';}
+  function bothLbl(icon){return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">out</span><span style="font-size:7px;line-height:1;">in</span></span>`;}
+
   if(!blE&&abE&&bkE&&trE&&lvE) return{cls:'c-bl-block',lbl:'<span class="cell-icon">🔒</span>'};
-  if(bkE&&trE&&lvE&&blE){const t=io(ab);if(!t)return{cls:'c-occupied',lbl:''};return{cls:'c-'+ab,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&trE&&lvE&&blE){const t=io(bk);if(!t)return{cls:'c-bk-occupied',lbl:''};return{cls:'c-bk-'+bk,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&bkE&&lvE&&blE){const t=io(tr);if(!t)return{cls:'c-tr-occupied',lbl:''};return{cls:'c-tr-'+tr,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&bkE&&trE&&blE){const t=io(lv);if(!t)return{cls:'c-lv-occupied',lbl:''};return{cls:'c-lv-'+lv,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${t}</span>`};}
+  if(bkE&&trE&&lvE&&blE){const t=io(ab);if(!t)return{cls:'c-occupied',lbl:''};if(ab==='both')return{cls:'c-both',lbl:bothLbl()};return{cls:'c-'+ab,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&trE&&lvE&&blE){const t=io(bk);if(!t)return{cls:'c-bk-occupied',lbl:''};if(bk==='both')return{cls:'c-bk-both',lbl:bothLbl()};return{cls:'c-bk-'+bk,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&bkE&&lvE&&blE){const t=io(tr);if(!t)return{cls:'c-tr-occupied',lbl:''};if(tr==='both')return{cls:'c-tr-both',lbl:bothLbl()};return{cls:'c-tr-'+tr,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&bkE&&trE&&blE){const t=io(lv);if(!t)return{cls:'c-lv-occupied',lbl:''};if(lv==='both')return{cls:'c-lv-both',lbl:bothLbl()};return{cls:'c-lv-'+lv,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${t}</span>`};}
   const parts=[];
   if(!abE) parts.push(`<span style="font-size:7px;color:var(--ab-out);">✈${io(ab)}</span>`);
   if(!bkE) parts.push(`<span style="font-size:7px;color:var(--bk-out);">🏨${io(bk)}</span>`);
