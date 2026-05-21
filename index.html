@@ -308,9 +308,9 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
     <div class="month-display" id="monthDisplay"></div>
     <button class="nav-arrow" id="nextBtn">›</button>
     <div class="view-tabs">
-      <button class="view-tab active" id="monthTab">월간</button>
+      <button class="view-tab" id="monthTab">월간</button>
       <button class="view-tab" id="weekTab">주간</button>
-      <button class="view-tab" id="multiTab">연속</button>
+      <button class="view-tab active" id="multiTab">연속</button>
     </div>
   </div>
 </div>
@@ -431,7 +431,7 @@ const MONTHS_TO_SHOW = 6;
 const PROXY = 'https://ical-proxy.vagabond1984.workers.dev';
 const ICAL_BASE = 'https://ical-proxy.vagabond1984.workers.dev/ical';
 
-let curY, curM, viewMode = 'month';
+let curY, curM, viewMode = 'multi';
 let rooms = [];
 let manualBlocks = [];
 let dragSrcIdx = null;
