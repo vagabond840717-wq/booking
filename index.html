@@ -125,8 +125,6 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .day-th.sun { color: #dc2626; } .day-th.sat { color: var(--bk-out); }
 .day-th.today-hd { color: var(--navy); font-weight: 600; }
 .day-th .dname { font-size: 9px; opacity: 0.7; }
-.day-cell { min-width: 36px; width: 36px; height: 36px; padding: 2px; cursor: pointer; }
-.day-cell:active .cell-inner { filter: brightness(0.92); }
 .cell-inner {
   width: 100%; height: 100%; border-radius: 5px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -135,26 +133,37 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .cell-icon { font-size: 9px; line-height: 1; display: block; }
 .cell-txt { font-size: 8px; font-weight: 700; line-height: 1; display: block; }
 
-.c-empty {} .c-occupied { background: var(--ab-stay); }
-.c-checkout { background: rgba(229,80,58,0.18); color: var(--ab-out); }
-.c-checkin  { background: rgba(34,160,107,0.18); color: var(--ab-in); }
-.c-both { background: linear-gradient(90deg,rgba(229,80,58,0.2) 50%,rgba(34,160,107,0.2) 50%); }
-.c-bk-occupied { background: var(--bk-stay); }
-.c-bk-checkout { background: rgba(229,80,58,0.18); color: var(--ab-out); }
-.c-bk-checkin  { background: rgba(34,160,107,0.18); color: var(--ab-in); }
-.c-bk-both { background: linear-gradient(90deg,rgba(26,111,204,0.2) 50%,rgba(58,159,216,0.2) 50%); }
-.c-tr-occupied { background: var(--tr-stay); }
-.c-tr-checkout { background: rgba(229,80,58,0.18); color: var(--ab-out); }
-.c-tr-checkin  { background: rgba(34,160,107,0.18); color: var(--ab-in); }
-.c-tr-both { background: linear-gradient(90deg,rgba(212,87,30,0.2) 50%,rgba(232,135,58,0.2) 50%); }
-.c-lv-occupied { background: var(--lv-stay); }
-.c-lv-checkout { background: rgba(229,80,58,0.18); color: var(--ab-out); }
-.c-lv-checkin  { background: rgba(34,160,107,0.18); color: var(--ab-in); }
-.c-lv-both { background: linear-gradient(90deg,rgba(124,58,237,0.2) 50%,rgba(168,85,247,0.2) 50%); }
-.c-bl-occupied { background: var(--bl-stay); }
-.c-bl-block { background: rgba(55,65,81,0.18); color: var(--bl-color); }
-.c-overbooking { background: var(--ob-bg); outline: 1.5px solid var(--ob-color); outline-offset: -2px; border-radius: 5px; }
-.c-dual { background: linear-gradient(180deg,rgba(229,80,58,0.10) 50%,rgba(26,111,204,0.10) 50%); }
+/* 예약 셀: 검정 배경 위에 단색 컬러 */
+.day-cell { min-width: 36px; width: 36px; height: 36px; padding: 2px; cursor: pointer; background: #000; }
+.day-cell:active .cell-inner { filter: brightness(1.2); }
+.c-empty { background: transparent; }
+/* Airbnb */
+.c-occupied  { background: #e5503a; }
+.c-checkout  { background: #e5503a; color: #fff; }
+.c-checkin   { background: #22a06b; color: #fff; }
+.c-both      { background: linear-gradient(90deg,#e5503a 50%,#22a06b 50%); }
+/* Booking.com */
+.c-bk-occupied { background: #1a6fcc; }
+.c-bk-checkout  { background: #e5503a; color: #fff; }
+.c-bk-checkin   { background: #3a9fd8; color: #fff; }
+.c-bk-both      { background: linear-gradient(90deg,#1a6fcc 50%,#3a9fd8 50%); }
+/* Trip.com */
+.c-tr-occupied { background: #d4571e; }
+.c-tr-checkout  { background: #d4571e; color: #fff; }
+.c-tr-checkin   { background: #e8873a; color: #fff; }
+.c-tr-both      { background: linear-gradient(90deg,#d4571e 50%,#e8873a 50%); }
+/* 리브애니웨어 */
+.c-lv-occupied { background: #7c3aed; }
+.c-lv-checkout  { background: #7c3aed; color: #fff; }
+.c-lv-checkin   { background: #a855f7; color: #fff; }
+.c-lv-both      { background: linear-gradient(90deg,#7c3aed 50%,#a855f7 50%); }
+/* 블락 */
+.c-bl-occupied { background: #374151; }
+.c-bl-block    { background: #4b5563; color: #e5e7eb; }
+/* 오버부킹 */
+.c-overbooking { background: #dc2626; outline: 1.5px solid #ff6b6b; outline-offset: -2px; border-radius: 5px; }
+/* 복합 */
+.c-dual { background: linear-gradient(180deg,#e5503a 50%,#1a6fcc 50%); }
 .today-ring .cell-inner { outline: 2px solid var(--navy); outline-offset: -2px; border-radius: 5px; }
 .cal-row { border-bottom: 1px solid var(--border); }
 
@@ -677,7 +686,60 @@ function buildBodyRows(days,y,m){
 function renderMonth(){
   if(!rooms.length) return emptyState();
   const days=daysIn(curY,curM);
-  return `<div class="cal-scroll"><table class="cal-table"><thead>${buildDayRow(days,curY,curM)}</thead><tbody>${buildBodyRows(days,curY,curM)}</tbody></table></div>`;
+  return `<div class="cal-scroll" id="monthCalScroll"><table class="cal-table"><thead>${buildDayRow(days,curY,curM)}</thead><tbody>${buildBodyRows(days,curY,curM)}</tbody></table></div>`;
+}
+
+// ── 월간 스와이프/휠로 달 전환 ──
+let _swipeStartX=0, _swipeStartY=0, _swipeScrollLeft=0, _isSwiping=false;
+function attachMonthSwipe(){
+  const el=document.getElementById('monthCalScroll');
+  if(!el) return;
+
+  // 터치 스와이프
+  el.addEventListener('touchstart',e=>{
+    _swipeStartX=e.touches[0].clientX;
+    _swipeStartY=e.touches[0].clientY;
+    _swipeScrollLeft=el.scrollLeft;
+    _isSwiping=true;
+  },{passive:true});
+  el.addEventListener('touchend',e=>{
+    if(!_isSwiping) return;
+    _isSwiping=false;
+    const dx=e.changedTouches[0].clientX-_swipeStartX;
+    const dy=e.changedTouches[0].clientY-_swipeStartY;
+    // 수평 스와이프가 수직보다 크고, 테이블 끝에 닿았을 때만 달 전환
+    if(Math.abs(dx)>Math.abs(dy)*1.5 && Math.abs(dx)>50){
+      const atStart=el.scrollLeft<=2;
+      const atEnd=el.scrollLeft>=el.scrollWidth-el.clientWidth-2;
+      if(dx>0 && atStart){
+        // 이전 달
+        curM--;if(curM<0){curM=11;curY--;}
+        render();
+      } else if(dx<0 && atEnd){
+        // 다음 달
+        curM++;if(curM>11){curM=0;curY++;}
+        render();
+      }
+    }
+  },{passive:true});
+
+  // 마우스 휠 (수평 휠 또는 수직 휠 + 끝 감지)
+  el.addEventListener('wheel',e=>{
+    const hScroll=Math.abs(e.deltaX)>Math.abs(e.deltaY);
+    if(hScroll) return; // 가로 스크롤은 기본 동작
+    // 세로 휠인데 테이블 끝에 닿으면 달 전환
+    const atStart=el.scrollLeft<=2;
+    const atEnd=el.scrollLeft>=el.scrollWidth-el.clientWidth-2;
+    if(e.deltaY<0 && atStart){
+      e.preventDefault();
+      curM--;if(curM<0){curM=11;curY--;}
+      render();
+    } else if(e.deltaY>0 && atEnd){
+      e.preventDefault();
+      curM++;if(curM>11){curM=0;curY++;}
+      render();
+    }
+  },{passive:false});
 }
 
 function renderWeek(){
@@ -790,7 +852,7 @@ function render(){
   document.getElementById('monthDisplay').textContent=`${curY}. ${String(curM+1).padStart(2,'0')}`;
   document.getElementById('prevBtn').style.visibility=isMulti?'hidden':'visible';
   document.getElementById('nextBtn').style.visibility=isMulti?'hidden':'visible';
-  if(viewMode==='month') document.getElementById('calendarArea').innerHTML=renderMonth();
+  if(viewMode==='month'){document.getElementById('calendarArea').innerHTML=renderMonth();attachMonthSwipe();}
   else if(viewMode==='week') document.getElementById('calendarArea').innerHTML=renderWeek();
   else document.getElementById('calendarArea').innerHTML=renderMulti();
   updateTodayBanner();
@@ -1057,6 +1119,7 @@ document.getElementById('todayBtn').onclick=()=>{
     ['month','week','multi'].forEach(x=>document.getElementById(x+'Tab').classList.remove('active'));
     document.getElementById(v+'Tab').classList.add('active');
     render();
+    if(v==='month') setTimeout(scrollToToday, 100);
   };
 });
 // syncBtn은 배너에 통합됨
