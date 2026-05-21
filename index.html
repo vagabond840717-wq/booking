@@ -1385,7 +1385,7 @@ function urlBase64ToUint8Array(base64String) {
 async function registerSW() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
-    const reg = await navigator.serviceWorker.register('/sw.js');
+    const reg = await navigator.serviceWorker.register('./sw.js');
     window._swReg = reg;
     await updateNotifyBtn();
   } catch(e) { console.log('SW 등록 실패', e); }
@@ -1416,7 +1416,7 @@ async function toggleNotify() {
     alert('이 브라우저는 푸시 알림을 지원하지 않아요.\niPhone은 Safari로 홈화면에 추가 후 이용하세요.');
     return;
   }
-  const reg = window._swReg || await navigator.serviceWorker.register('/sw.js');
+  const reg = window._swReg || await navigator.serviceWorker.register('./sw.js');
   window._swReg = reg;
   const existing = await reg.pushManager.getSubscription();
   if (existing) {
