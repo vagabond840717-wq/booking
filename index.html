@@ -133,38 +133,41 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .cell-icon { font-size: 9px; line-height: 1; display: block; }
 .cell-txt { font-size: 8px; font-weight: 700; line-height: 1; display: block; }
 
-/* 예약 셀: 검정 배경 위에 단색 컬러 */
-.day-cell { min-width: 36px; width: 36px; height: 36px; padding: 2px; cursor: pointer; background: #000; }
-.day-cell:active .cell-inner { filter: brightness(1.2); }
+/* 예약 셀: 어두운 회색 배경, 밝기 적당한 컬러 */
+.day-cell { min-width: 36px; width: 36px; height: 36px; padding: 2px; cursor: pointer; background: #22252e; }
+.day-cell:active .cell-inner { filter: brightness(1.15); }
 .c-empty { background: transparent; }
-/* Airbnb */
-.c-occupied  { background: #e5503a; }
-.c-checkout  { background: #e5503a; color: #fff; }
-.c-checkin   { background: #22a06b; color: #fff; }
-.c-both      { background: linear-gradient(90deg,#e5503a 50%,#22a06b 50%); }
+.day-cell .cell-inner { border: 1px solid rgba(255,255,255,0.08); }
+.day-cell .c-empty   { border-color: rgba(255,255,255,0.1); }
+/* Airbnb — 숙박중: 차분한 벽돌, 아웃: 선명한 빨강, 인: 선명한 초록 */
+.c-occupied  { background: #8b2e1e; border-color: transparent !important; }
+.c-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
+.c-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); border-color: transparent !important; }
 /* Booking.com */
-.c-bk-occupied { background: #1a6fcc; }
-.c-bk-checkout  { background: #e5503a; color: #fff; }
-.c-bk-checkin   { background: #3a9fd8; color: #fff; }
-.c-bk-both      { background: linear-gradient(90deg,#1a6fcc 50%,#3a9fd8 50%); }
+.c-bk-occupied { background: #1a3f7a; border-color: transparent !important; }
+.c-bk-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
+.c-bk-checkin   { background: #2e86c1; color: #fff; border-color: transparent !important; }
+.c-bk-both      { background: linear-gradient(90deg,#e5503a 50%,#2e86c1 50%); border-color: transparent !important; }
 /* Trip.com */
-.c-tr-occupied { background: #d4571e; }
-.c-tr-checkout  { background: #d4571e; color: #fff; }
-.c-tr-checkin   { background: #e8873a; color: #fff; }
-.c-tr-both      { background: linear-gradient(90deg,#d4571e 50%,#e8873a 50%); }
+.c-tr-occupied { background: #7a3010; border-color: transparent !important; }
+.c-tr-checkout  { background: #d4571e; color: #fff; border-color: transparent !important; }
+.c-tr-checkin   { background: #e8873a; color: #fff; border-color: transparent !important; }
+.c-tr-both      { background: linear-gradient(90deg,#d4571e 50%,#e8873a 50%); border-color: transparent !important; }
 /* 리브애니웨어 */
-.c-lv-occupied { background: #7c3aed; }
-.c-lv-checkout  { background: #7c3aed; color: #fff; }
-.c-lv-checkin   { background: #a855f7; color: #fff; }
-.c-lv-both      { background: linear-gradient(90deg,#7c3aed 50%,#a855f7 50%); }
+.c-lv-occupied { background: #4a1fa8; border-color: transparent !important; }
+.c-lv-checkout  { background: #7c3aed; color: #fff; border-color: transparent !important; }
+.c-lv-checkin   { background: #a855f7; color: #fff; border-color: transparent !important; }
+.c-lv-both      { background: linear-gradient(90deg,#7c3aed 50%,#a855f7 50%); border-color: transparent !important; }
 /* 블락 */
-.c-bl-occupied { background: #374151; }
-.c-bl-block    { background: #4b5563; color: #e5e7eb; }
+.c-bl-occupied { background: #2d333d; border-color: transparent !important; }
+.c-bl-block    { background: #3d4452; color: #c0c8d8; border-color: transparent !important; }
 /* 오버부킹 */
-.c-overbooking { background: #dc2626; outline: 1.5px solid #ff6b6b; outline-offset: -2px; border-radius: 5px; }
+.c-overbooking { background: #b91c1c; outline: 2px solid #f87171; outline-offset: -2px; border-radius: 5px; border-color: transparent !important; }
 /* 복합 */
-.c-dual { background: linear-gradient(180deg,#e5503a 50%,#1a6fcc 50%); }
-.today-ring .cell-inner { outline: 2px solid var(--navy); outline-offset: -2px; border-radius: 5px; }
+.c-dual { background: linear-gradient(180deg,#8b2e1e 50%,#1a3f7a 50%); border-color: transparent !important; }
+/* 오늘 링: 밝은 하늘색으로 잘 보이게 */
+.today-ring .cell-inner { outline: 2px solid #38bdf8; outline-offset: -2px; border-radius: 5px; }
 .cal-row { border-bottom: 1px solid var(--border); }
 
 .week-block { margin-bottom: 20px; }
