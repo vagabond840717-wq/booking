@@ -58,10 +58,12 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 .view-tab.active { background: var(--navy); color: #fff; font-weight: 500; }
 
 .today-banner {
-  margin: 12px 16px 0; background: var(--surface); border: 1px solid var(--border2);
-  border-radius: var(--r2); padding: 12px 14px;
+  position: sticky; top: var(--header-h, 89px); z-index: 90;
+  margin: 0; background: #ffffff;
+  border-bottom: 1px solid var(--border2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 10px 16px;
   display: flex; align-items: center; justify-content: space-between;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 .today-date { font-size: 13px; color: var(--text2); }
 .today-date strong { color: var(--navy); font-weight: 600; font-family: 'DM Mono', monospace; }
@@ -83,9 +85,14 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.8s linear infinite; display: inline-block; }
 
+.ob-alerts-wrap {
+  position: sticky; top: var(--banner-bottom, 133px); z-index: 89;
+  background: rgba(244,246,251,0.97);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
 .ob-alert {
-  background: var(--ob-bg); border: 1px solid rgba(220,38,38,0.3);
-  border-radius: var(--r); padding: 10px 14px; margin-bottom: 12px;
+  background: var(--ob-bg); border-bottom: 1px solid rgba(220,38,38,0.2);
+  padding: 8px 16px;
   display: flex; align-items: flex-start; gap: 8px;
 }
 .ob-alert-text { font-size: 12px; color: var(--ob-color); line-height: 1.6; font-weight: 500; }
@@ -295,7 +302,7 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--t
     <span class="sync-time" id="syncTime">—</span>
     <button class="sync-btn" id="syncBtn"><span id="syncIcon">↻</span> 동기화</button>
   </div>
-  <div id="obAlerts"></div>
+  <div class="ob-alerts-wrap"><div id="obAlerts"></div></div>
   <div id="calendarArea"></div>
 </div>
 
@@ -535,11 +542,20 @@ function cellTypeFor(bookings,d,y,m){
 }
 
 function isOverbooking(room,d,y,m){
+  // 실제 숙박 중인(occupied) 예약만 카운트 - 체크인/아웃 교체는 오버부킹 아님
+  function isOccupied(bookings){
+    const cur=new Date(y,m,d);
+    return bookings.some(bk=>{
+      const cin=new Date(bk.cinY,bk.cinM,bk.cinD);
+      const cout=new Date(bk.coutY,bk.coutM,bk.coutD);
+      return cur>cin && cur<cout; // 체크인/아웃 당일 제외, 순수 숙박 중만
+    });
+  }
   let n=0;
-  if(cellTypeFor(room.bookings||[],d,y,m)!=='empty') n++;
-  if(cellTypeFor(room.bkBookings||[],d,y,m)!=='empty') n++;
-  if(cellTypeFor(room.trBookings||[],d,y,m)!=='empty') n++;
-  if(cellTypeFor(room.lvBookings||[],d,y,m)!=='empty') n++;
+  if(isOccupied(room.bookings||[])) n++;
+  if(isOccupied(room.bkBookings||[])) n++;
+  if(isOccupied(room.trBookings||[])) n++;
+  if(isOccupied(room.lvBookings||[])) n++;
   return n>=2;
 }
 
@@ -780,23 +796,16 @@ function scrollToToday(){
 }
 
 function goToDate(dateStr){
-  // dateStr: "2026.05.21" 형식
   const parts=dateStr.split('.');
   const y=+parts[0],m=+parts[1]-1,d=+parts[2];
-  // 연속뷰로 전환 (curY/curM 변경 없이)
-  viewMode='multi';
-  ['month','week','multi'].forEach(x=>document.getElementById(x+'Tab').classList.remove('active'));
-  document.getElementById('multiTab').classList.add('active');
-  render();
-  // 해당 날짜 셀로 스크롤
+  // 해당 월이 현재 뷰에 없으면 이동
+  if(viewMode==='month'&&(curY!==y||curM!==m)){curY=y;curM=m;render();}
   requestAnimationFrame(()=>{
     const cell=document.querySelector(`[data-y="${y}"][data-m="${m}"][data-d="${d}"]`);
     if(cell){
-      const se=cell.closest('.cal-scroll');
-      if(se){
-        const cr=cell.getBoundingClientRect(),sr=se.getBoundingClientRect();
-        se.scrollBy({left:cr.left-sr.left-sr.width*0.3,behavior:'smooth'});
-      }
+      cell.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+      cell.querySelector('.cell-inner').style.outline='2px solid var(--ob-color)';
+      setTimeout(()=>{if(cell.querySelector('.cell-inner'))cell.querySelector('.cell-inner').style.outline='';},2000);
     }
   });
 }
@@ -1080,6 +1089,17 @@ async function init(){
   await loadRooms();
   render();
   await triggerSync();
+  // 헤더 높이 동적 계산
+  const hdr=document.querySelector('.app-header');
+  if(hdr){
+    const hh=hdr.offsetHeight;
+    document.documentElement.style.setProperty('--header-h', hh+'px');
+    const banner=document.getElementById('todayBanner');
+    if(banner){
+      const bh=hh+banner.offsetHeight;
+      document.documentElement.style.setProperty('--banner-bottom', bh+'px');
+    }
+  }
 }
 init();
 </script>
