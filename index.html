@@ -6,6 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#f4f6fb">
+<link rel="manifest" href="/manifest.json">
+<script>const VAPID_PUBLIC_KEY = 'BPRpwFw6gdhDvGZ_wJOFHsJVsEYJ5zVPpL6y0QelZpZXm7JVpiyK1l1pCE0rbLePn3br10OjAnf2Wn4EnlZHSOI';</script>
 <title>HANA STAY · 예약현황</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -348,6 +350,7 @@ thead { position: sticky; top: 0; z-index: 10; }
     <div class="header-actions">
       <button class="icon-btn" id="dateSearchBtn" title="날짜 이동">🔍</button>
       <button class="icon-btn" id="todayBtn">●</button>
+      <button class="icon-btn" id="notifyBtn" title="푸시 알림" onclick="toggleNotify()">🔔</button>
       <button class="icon-btn" id="blockBtn">🔒</button>
       <button class="icon-btn" id="settingsBtn">☰</button>
     </div>
@@ -1370,6 +1373,90 @@ async function init(){
   }
 }
 init();
+
+// ── PUSH NOTIFICATION ──
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function registerSW() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    window._swReg = reg;
+    await updateNotifyBtn();
+  } catch(e) { console.log('SW 등록 실패', e); }
+}
+
+async function getSubscription() {
+  if (!window._swReg) return null;
+  return await window._swReg.pushManager.getSubscription();
+}
+
+async function updateNotifyBtn() {
+  const btn = document.getElementById('notifyBtn');
+  if (!btn) return;
+  const sub = await getSubscription();
+  if (sub) {
+    btn.style.background = '#1e3a8a';
+    btn.style.color = '#fff';
+    btn.title = '알림 켜짐 (탭하면 해제)';
+  } else {
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.title = '푸시 알림 받기';
+  }
+}
+
+async function toggleNotify() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    alert('이 브라우저는 푸시 알림을 지원하지 않아요.\niPhone은 Safari로 홈화면에 추가 후 이용하세요.');
+    return;
+  }
+  const reg = window._swReg || await navigator.serviceWorker.register('/sw.js');
+  window._swReg = reg;
+  const existing = await reg.pushManager.getSubscription();
+  if (existing) {
+    // 구독 해제
+    await existing.unsubscribe();
+    await fetch(PROXY + '/push/unsubscribe', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ endpoint: existing.endpoint })
+    }).catch(()=>{});
+    await updateNotifyBtn();
+    alert('알림이 해제되었어요.');
+    return;
+  }
+  // 구독 요청
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') {
+    alert('알림 권한이 필요해요. 브라우저 설정에서 허용해 주세요.');
+    return;
+  }
+  try {
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    const subData = sub.toJSON();
+    await fetch(PROXY + '/push/subscribe', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(subData)
+    });
+    await updateNotifyBtn();
+    alert('🔔 알림이 설정되었어요!\n새 예약이 생기면 바로 알림을 받을 수 있어요.');
+  } catch(e) {
+    alert('알림 등록 실패: ' + e.message);
+  }
+}
+
+registerSW();
+
 </script>
 </body>
 </html>
