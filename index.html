@@ -975,6 +975,15 @@ function goToDate(dateStr){
 
 // ── DETAIL ──
 function attachCellClicks(){
+  // 날짜 헤더(th)에도 hover 이벤트
+  document.querySelectorAll('.day-th[data-y]').forEach(th=>{
+    th.addEventListener('mouseenter',()=>{
+      const y=+th.dataset.y,m=+th.dataset.m,d=+th.dataset.d;
+      if(!isNaN(y)&&!isNaN(m)&&!isNaN(d)) hoverBanner(y,m,d);
+    });
+    th.addEventListener('mouseleave',()=>leaveBanner());
+  });
+
   document.querySelectorAll('.day-cell').forEach(cell=>{
     // PC: 마우스 호버 → 배너 업데이트
     cell.addEventListener('mouseenter',()=>{
