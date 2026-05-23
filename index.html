@@ -418,11 +418,12 @@ thead { position: sticky; top: 0; z-index: 10; }
     <div class="sheet-header">
       <span class="sheet-title">🔔 알림 내역</span>
       <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="markAllRead()" style="font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;color:var(--text2)">전체 확인</button>
         <button id="notifyToggleBtn" onclick="toggleNotify()" style="font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;color:var(--text2)">알림 설정</button>
         <button class="sheet-close" id="closeNotifyPanel">✕</button>
       </div>
     </div>
-    <div id="notifyEventList" style="padding:12px;display:flex;flex-direction:column;gap:10px;"></div>
+    <div id="notifyEventList" style="padding:12px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;max-height:calc(100vh - 120px);-webkit-overflow-scrolling:touch;"></div>
   </div>
 </div>
 
@@ -1503,7 +1504,9 @@ async function renderNotifyEvents() {
       const bgColor = e.read ? 'var(--surface2)' : (isTest ? '#f9fafb' : (isNew ? '#eff6ff' : '#fff1f2'));
       const body = isTest
         ? '푸시 알림 테스트'
-        : (isNew ? `${e.platform} ${e.cin}~${e.cout}` : `${e.platform} ${e.count}건 취소`);
+        : (isNew
+          ? `${e.platform} ${e.cin}~${e.cout}`
+          : `${e.platform}${e.cin ? ' ' + e.cin + '~' + e.cout : ''} 취소`);
       return `<div id="ev_${e.id}" style="background:${bgColor};border-radius:12px;padding:12px 14px;border:1px solid var(--border2);opacity:${e.read?'0.6':'1'}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
@@ -1522,6 +1525,13 @@ async function renderNotifyEvents() {
   } catch(e) {
     list.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">불러오기 실패</div>';
   }
+}
+
+async function markAllRead() {
+  try {
+    await fetch(PROXY + '/push/events/readall', { method: 'POST' });
+    await renderNotifyEvents();
+  } catch(e) {}
 }
 
 async function markRead(id) {
