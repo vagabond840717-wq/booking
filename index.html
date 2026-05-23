@@ -483,14 +483,7 @@ thead { position: sticky; top: 0; z-index: 10; }
         <div class="sheet-section-title">등록된 호실 (<span id="roomCount">0</span>/9)</div>
         <div id="roomList"></div>
       </div>
-      <div class="sheet-section">
-        <div class="sheet-section-title">📤 iCal 내보내기 URL</div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.7;">
-          아래 URL을 각 플랫폼 iCal 가져오기에 등록하면 오버부킹 자동 방지.<br>
-          <strong style="color:var(--navy)">한번만</strong> 등록하면 끝!
-        </div>
-        <div id="exportUrlList"></div>
-      </div>
+      <div id="exportUrlList" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -1212,10 +1205,10 @@ function renderRoomList(){
       <div class="drag-handle">⠿</div>
       <div class="room-item-dot" style="background:${r.color}"></div>
       <div class="room-item-info">
-        <div class="room-item-name">${r.name} ${(r.url||r.bkUrl||r.trUrl||r.lvUrl)?'<span class="status-pill">연동됨</span>':''}</div>
+        <div class="room-item-name">${r.name} ${[r.url?'✈':'',r.bkUrl?'🏨':'',r.trUrl?'🌐':'',r.lvUrl?'🏡':''].filter(Boolean).join(' ')}</div>
       </div>
       <button class="room-edit-btn" data-edit="${i}">✎</button>
-      <button class="room-del" data-idx="${i}">✕</button>
+      <button class="room-del" data-idx="${i}" onclick="if(confirm('${r.name} 호실을 삭제할까요?')){}else{event.stopImmediatePropagation();}">✕</button>
       <div style="width:100%;margin-top:6px;padding:8px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border2);">
         ${urlRows}
       </div>
@@ -1252,7 +1245,12 @@ function renderRoomList(){
     });
   });
   list.querySelectorAll('.room-del').forEach(btn=>{
-    btn.addEventListener('click',e=>{rooms.splice(+e.currentTarget.dataset.idx,1);saveRooms();render();renderRoomList();});
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const idx=+e.currentTarget.dataset.idx;
+      if(!confirm(rooms[idx].name+' 호실을 삭제할까요?\n삭제하면 복구할 수 없어요.'))return;
+      rooms.splice(idx,1);saveRooms();render();renderRoomList();
+    });
   });
   const items=list.querySelectorAll('.room-item[draggable]');
   items.forEach(item=>{
