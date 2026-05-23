@@ -483,7 +483,9 @@ thead { position: sticky; top: 0; z-index: 10; }
         <div class="sheet-section-title">등록된 호실 (<span id="roomCount">0</span>/9)</div>
         <div id="roomList"></div>
       </div>
-      <div id="exportUrlList" style="display:none;"></div>
+      <div class="sheet-section-title" style="margin-top:16px;">📋 플랫폼별 연동 URL</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">각 플랫폼에 등록할 URL을 복사하세요</div>
+        <div id="exportUrlList"></div>
     </div>
   </div>
 </div>
@@ -1191,29 +1193,16 @@ function renderRoomList(){
   const list=document.getElementById('roomList');
   document.getElementById('roomCount').textContent=rooms.length;
   if(!rooms.length){list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;">아직 등록된 호실이 없어요.</div>';renderExportUrls();return;}
-  list.innerHTML=`<div class="reorder-hint">⠿ 드래그로 순서 변경</div>`+rooms.map((r,i)=>{
-    const enc=encodeURIComponent(r.name);
-    const urlRows=['ab','bk','tr','lv'].map(p=>{
-      const label={'ab':'✈ 에어비앤비','bk':'🏨 부킹닷컴','tr':'🌐 트립닷컴','lv':'🏡 리브애니웨어'}[p];
-      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
-        <span style="font-size:11px;color:var(--text2);width:95px;flex-shrink:0;">${label}</span>
-        <button onclick="navigator.clipboard.writeText('${ICAL_BASE}/${enc}?for=${p}').then(()=>showToast('복사됐어요 ✓'))" style="padding:3px 10px;font-size:11px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;">복사</button>
-      </div>`;
-    }).join('');
-    return `
-    <div class="room-item" draggable="true" data-idx="${i}" style="flex-wrap:wrap;">
+  list.innerHTML=`<div class="reorder-hint">⠿ 드래그로 순서 변경</div>`+rooms.map((r,i)=>`
+    <div class="room-item" draggable="true" data-idx="${i}">
       <div class="drag-handle">⠿</div>
       <div class="room-item-dot" style="background:${r.color}"></div>
       <div class="room-item-info">
         <div class="room-item-name">${r.name} ${[r.url?'✈':'',r.bkUrl?'🏨':'',r.trUrl?'🌐':'',r.lvUrl?'🏡':''].filter(Boolean).join(' ')}</div>
       </div>
       <button class="room-edit-btn" data-edit="${i}">✎</button>
-      <button class="room-del" data-idx="${i}" onclick="if(confirm('${r.name} 호실을 삭제할까요?')){}else{event.stopImmediatePropagation();}">✕</button>
-      <div style="width:100%;margin-top:6px;padding:8px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border2);">
-        ${urlRows}
-      </div>
-    </div>`;
-  }).join('');
+      <button class="room-del" data-idx="${i}">✕</button>
+    </div>`).join('');
   list.querySelectorAll('.room-edit-btn').forEach(btn=>{
     btn.addEventListener('click',e=>{
       e.stopPropagation();
@@ -1271,12 +1260,24 @@ function renderRoomList(){
 function renderExportUrls(){
   const el=document.getElementById('exportUrlList');
   if(!rooms.length){el.innerHTML='<div style="font-size:12px;color:var(--text3);">호실을 먼저 추가해주세요.</div>';return;}
-  el.innerHTML=rooms.map(r=>{
-    const url=`${ICAL_BASE}/${encodeURIComponent(r.name)}`;
-    return `<div class="export-url-box">
-      <div class="export-url-label"><div class="room-dot" style="background:${r.color};display:inline-block;margin-right:4px;"></div>${r.name}</div>
-      <div class="export-url-text">${url}</div>
-      <button class="copy-btn" onclick="copyUrl('${url}',this)">📋 URL 복사</button>
+  const platforms=[
+    {key:'ab',label:'✈ 에어비앤비'},
+    {key:'bk',label:'🏨 부킹닷컴'},
+    {key:'tr',label:'🌐 트립닷컴'},
+    {key:'lv',label:'🏡 리브애니웨어'},
+  ];
+  el.innerHTML=platforms.map(({key,label})=>{
+    const rows=rooms.map(r=>{
+      const url=`${ICAL_BASE}/${encodeURIComponent(r.name)}?for=${key}`;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <div class="room-dot" style="background:${r.color};display:inline-block;flex-shrink:0;"></div>
+        <span style="font-size:12px;flex:1;color:var(--text);">${r.name}</span>
+        <button onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('복사됐어요 ✓'))" style="padding:3px 12px;font-size:11px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">복사</button>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border2);">${label}</div>
+      ${rows}
     </div>`;
   }).join('');
 }
