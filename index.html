@@ -350,7 +350,7 @@ thead { position: sticky; top: 0; z-index: 10; }
     <div class="header-actions">
       <button class="icon-btn" id="dateSearchBtn" title="날짜 이동">🔍</button>
       <button class="icon-btn" id="todayBtn">●</button>
-      <button class="icon-btn" id="notifyBtn" title="푸시 알림" onclick="openNotifyPanel()" oncontextmenu="toggleNotify();return false;">🔔</button>
+      <button class="icon-btn" id="notifyBtn" title="알림 내역" onclick="openNotifyPanel()">🔔</button>
       <button class="icon-btn" id="blockBtn">🔒</button>
       <button class="icon-btn" id="settingsBtn">☰</button>
     </div>
@@ -417,7 +417,10 @@ thead { position: sticky; top: 0; z-index: 10; }
   <div class="panel-sheet">
     <div class="sheet-header">
       <span class="sheet-title">🔔 알림 내역</span>
-      <button class="sheet-close" id="closeNotifyPanel">✕</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="notifyToggleBtn" onclick="toggleNotify()" style="font-size:12px;padding:4px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;color:var(--text2)">알림 설정</button>
+        <button class="sheet-close" id="closeNotifyPanel">✕</button>
+      </div>
     </div>
     <div id="notifyEventList" style="padding:12px;display:flex;flex-direction:column;gap:10px;"></div>
   </div>
@@ -1408,16 +1411,17 @@ async function getSubscription() {
 
 async function updateNotifyBtn() {
   const btn = document.getElementById('notifyBtn');
+  const toggleBtn = document.getElementById('notifyToggleBtn');
   if (!btn) return;
   const sub = await getSubscription();
   if (sub) {
     btn.style.background = '#1e3a8a';
     btn.style.color = '#fff';
-    btn.title = '알림 켜짐 (탭하면 해제)';
+    if (toggleBtn) { toggleBtn.textContent = '🔕 알림 끄기'; toggleBtn.style.color = '#991b1b'; }
   } else {
     btn.style.background = '';
     btn.style.color = '';
-    btn.title = '푸시 알림 받기';
+    if (toggleBtn) { toggleBtn.textContent = '🔔 알림 켜기'; toggleBtn.style.color = ''; }
   }
 }
 
@@ -1493,12 +1497,13 @@ async function renderNotifyEvents() {
       const dt = new Date(e.ts);
       const timeStr = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
       const isNew = e.type === 'new';
-      const icon = isNew ? '📅' : '❌';
-      const color = isNew ? '#1e3a8a' : '#991b1b';
-      const bgColor = e.read ? 'var(--surface2)' : (isNew ? '#eff6ff' : '#fff1f2');
-      const body = isNew
-        ? `${e.platform} ${e.cin}~${e.cout}`
-        : `${e.platform} ${e.count}건 취소`;
+      const isTest = e.type === 'test';
+      const icon = isTest ? '🔔' : (isNew ? '📅' : '❌');
+      const color = isTest ? '#6b7280' : (isNew ? '#1e3a8a' : '#991b1b');
+      const bgColor = e.read ? 'var(--surface2)' : (isTest ? '#f9fafb' : (isNew ? '#eff6ff' : '#fff1f2'));
+      const body = isTest
+        ? '푸시 알림 테스트'
+        : (isNew ? `${e.platform} ${e.cin}~${e.cout}` : `${e.platform} ${e.count}건 취소`);
       return `<div id="ev_${e.id}" style="background:${bgColor};border-radius:12px;padding:12px 14px;border:1px solid var(--border2);opacity:${e.read?'0.6':'1'}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
