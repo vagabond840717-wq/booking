@@ -1271,11 +1271,9 @@ function renderExportUrls(){
       const url=`${ICAL_BASE}/${encodeURIComponent(r.name)}?for=${key}`;
       return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);">
         <div class="room-dot" style="background:${r.color};display:inline-block;flex-shrink:0;"></div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:600;color:var(--text);">${r.name}</div>
-          <div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${url}</div>
-        </div>
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-right:6px;">${r.name}</div>
         <button onclick="navigator.clipboard.writeText('${url}').then(()=>showToast('${r.name} ${key} 복사됐어요 ✓'))" style="padding:4px 14px;font-size:11px;font-weight:600;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;flex-shrink:0;">복사</button>
+        <div style="flex:1;min-width:0;font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${url}</div>
       </div>`;
     }).join('');
     return `<div style="margin-bottom:20px;">
