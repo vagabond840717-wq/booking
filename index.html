@@ -1197,11 +1197,11 @@ function renderRoomList(){
     <div class="room-item" draggable="true" data-idx="${i}">
       <div class="drag-handle">⠿</div>
       <div class="room-item-dot" style="background:${r.color}"></div>
-      <div class="room-item-info">
+      <div class="room-item-info" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <div class="room-item-name">${r.name} ${[r.url?'✈':'',r.bkUrl?'🏨':'',r.trUrl?'🌐':'',r.lvUrl?'🏡':''].filter(Boolean).join(' ')}</div>
+        <button class="room-edit-btn" data-edit="${i}">✎</button>
+        <button class="room-del" data-idx="${i}">✕</button>
       </div>
-      <button class="room-edit-btn" data-edit="${i}">✎</button>
-      <button class="room-del" data-idx="${i}">✕</button>
     </div>`).join('');
   list.querySelectorAll('.room-edit-btn').forEach(btn=>{
     btn.addEventListener('click',e=>{
