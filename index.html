@@ -1225,10 +1225,26 @@ function renderRoomList(){
         <div class="room-edit-actions">
           <button class="room-edit-save" data-save="${idx}">저장</button>
           <button class="room-edit-cancel">취소</button>
+        </div>
+        <button class="ical-url-btn" data-urlbtn="${idx}" style="width:100%;margin-top:6px;padding:8px;font-size:12px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);cursor:pointer;color:var(--text2);">📋 플랫폼 연동 URL 복사</button>
+        <div class="ical-url-panel" id="urlpanel_${idx}" style="display:none;margin-top:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:10px;font-size:12px;">
+          ${['ab','bk','tr','lv'].map(p=>{
+            const label={'ab':'✈ 에어비앤비','bk':'🏨 부킹닷컴','tr':'🌐 트립닷컴','lv':'🏡 리브애니웨어'}[p];
+            const encodedName=encodeURIComponent(r.name);
+            const icalUrl=`${ICAL_BASE}/${encodedName}?for=${p}`;
+            return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+              <span style="color:var(--text2);flex:1;">${label}</span>
+              <button onclick="navigator.clipboard.writeText('${icalUrl}').then(()=>showToast('복사됐어요 ✓'))" style="padding:4px 10px;font-size:11px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer;">복사</button>
+            </div>`;
+          }).join('')}
         </div>`;
       btn.closest('.room-item').after(form);
       form.querySelector(`#en_${idx}`).focus();
       form.querySelector('.room-edit-cancel').onclick=()=>form.remove();
+      form.querySelector(`[data-urlbtn="${idx}"]`).onclick=()=>{
+        const panel=document.getElementById(`urlpanel_${idx}`);
+        panel.style.display=panel.style.display==='none'?'block':'none';
+      };
       form.querySelector('.room-edit-save').onclick=()=>{
         const newName=document.getElementById(`en_${idx}`).value.trim();if(!newName)return;
         rooms[idx].name=newName;rooms[idx].url=document.getElementById(`eu_${idx}`).value.trim();
