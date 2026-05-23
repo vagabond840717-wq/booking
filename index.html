@@ -350,7 +350,7 @@ thead { position: sticky; top: 0; z-index: 10; }
     <div class="header-actions">
       <button class="icon-btn" id="dateSearchBtn" title="날짜 이동">🔍</button>
       <button class="icon-btn" id="todayBtn">●</button>
-      <button class="icon-btn" id="notifyBtn" title="푸시 알림" onclick="toggleNotify()">🔔</button>
+      <button class="icon-btn" id="notifyBtn" title="푸시 알림" onclick="openNotifyPanel()" oncontextmenu="toggleNotify();return false;">🔔</button>
       <button class="icon-btn" id="blockBtn">🔒</button>
       <button class="icon-btn" id="settingsBtn">☰</button>
     </div>
@@ -410,6 +410,16 @@ thead { position: sticky; top: 0; z-index: 10; }
       <button class="sheet-close" id="closeDetail">✕</button>
     </div>
     <div class="sheet-body" id="detailBody"></div>
+  </div>
+</div>
+
+<div class="panel-overlay" id="notifyPanel">
+  <div class="panel-sheet">
+    <div class="sheet-header">
+      <span class="sheet-title">🔔 알림 내역</span>
+      <button class="sheet-close" id="closeNotifyPanel">✕</button>
+    </div>
+    <div id="notifyEventList" style="padding:12px;display:flex;flex-direction:column;gap:10px;"></div>
   </div>
 </div>
 
@@ -1456,6 +1466,94 @@ async function toggleNotify() {
 }
 
 registerSW();
+checkUnreadEvents();
+
+// ── 알림 패널 ──
+async function openNotifyPanel() {
+  document.getElementById('notifyPanel').classList.add('open');
+  await renderNotifyEvents();
+}
+
+document.getElementById('closeNotifyPanel').onclick = () => document.getElementById('notifyPanel').classList.remove('open');
+document.getElementById('notifyPanel').addEventListener('click', e => {
+  if (e.target === document.getElementById('notifyPanel')) document.getElementById('notifyPanel').classList.remove('open');
+});
+
+async function renderNotifyEvents() {
+  const list = document.getElementById('notifyEventList');
+  list.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">불러오는 중...</div>';
+  try {
+    const res = await fetch(PROXY + '/push/events');
+    const events = await res.json();
+    if (!events.length) {
+      list.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">알림 내역이 없어요.</div>';
+      return;
+    }
+    list.innerHTML = events.map(e => {
+      const dt = new Date(e.ts);
+      const timeStr = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const isNew = e.type === 'new';
+      const icon = isNew ? '📅' : '❌';
+      const color = isNew ? '#1e3a8a' : '#991b1b';
+      const bgColor = e.read ? 'var(--surface2)' : (isNew ? '#eff6ff' : '#fff1f2');
+      const body = isNew
+        ? `${e.platform} ${e.cin}~${e.cout}`
+        : `${e.platform} ${e.count}건 취소`;
+      return `<div id="ev_${e.id}" style="background:${bgColor};border-radius:12px;padding:12px 14px;border:1px solid var(--border2);opacity:${e.read?'0.6':'1'}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div>
+            <div style="font-weight:700;font-size:14px;color:${color}">${icon} ${e.room}</div>
+            <div style="font-size:13px;color:var(--text2);margin-top:2px">${body}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">${timeStr}</div>
+          </div>
+          ${e.read ? '<span style="font-size:11px;color:var(--text3)">확인됨</span>' : `<button onclick="markRead('${e.id}')" style="background:${color};color:#fff;border:none;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap">확인</button>`}
+        </div>
+      </div>`;
+    }).join('');
+
+    // 미확인 알림 배지 업데이트
+    const unread = events.filter(e => !e.read).length;
+    updateNotifyBadge(unread);
+  } catch(e) {
+    list.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">불러오기 실패</div>';
+  }
+}
+
+async function markRead(id) {
+  await fetch(PROXY + '/push/events/read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  await renderNotifyEvents();
+}
+
+function updateNotifyBadge(count) {
+  const btn = document.getElementById('notifyBtn');
+  if (!btn) return;
+  // 기존 배지 제거
+  const old = document.getElementById('notifyBadge');
+  if (old) old.remove();
+  if (count > 0) {
+    const badge = document.createElement('span');
+    badge.id = 'notifyBadge';
+    badge.textContent = count;
+    badge.style.cssText = 'position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:999px;font-size:10px;font-weight:700;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 3px;';
+    btn.style.position = 'relative';
+    btn.appendChild(badge);
+  }
+}
+
+// 앱 시작 시 미확인 알림 배지 표시
+async function checkUnreadEvents() {
+  try {
+    const res = await fetch(PROXY + '/push/events');
+    const events = await res.json();
+    const unread = events.filter(e => !e.read).length;
+    updateNotifyBadge(unread);
+  } catch(e) {}
+}
+
 
 </script>
 </body>
