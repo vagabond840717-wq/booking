@@ -618,7 +618,7 @@ function cellTypeFor(bookings,d,y,m){
     const cin=new Date(bk.cinY,bk.cinM,bk.cinD);
     const cout=new Date(bk.coutY,bk.coutM,bk.coutD);
     if(cur.getTime()===cout.getTime()) isOut=true;
-    if(cur.getTime()===cin.getTime()) isIn=true;
+    if(cur.getTime()>=cin.getTime()&&cur.getTime()<cout.getTime()) isIn=true;
     if(cur>cin&&cur<cout) occupied=true;
   }
   if(isOut&&isIn) return 'both';
