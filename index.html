@@ -629,21 +629,14 @@ function cellTypeFor(bookings,d,y,m){
 }
 
 function isOverbooking(room,d,y,m){
-  // 실제 숙박 중인(occupied) 예약만 카운트 - 체크인/아웃 교체는 오버부킹 아님
-  function isOccupied(bookings){
-    const cur=new Date(y,m,d);
-    return bookings.some(bk=>{
-      const cin=new Date(bk.cinY,bk.cinM,bk.cinD);
-      const cout=new Date(bk.coutY,bk.coutM,bk.coutD);
-      return cur>cin && cur<cout; // 체크인/아웃 당일 제외, 순수 숙박 중만
-    });
-  }
-  let n=0;
-  if(isOccupied(room.bookings||[])) n++;
-  if(isOccupied(room.bkBookings||[])) n++;
-  if(isOccupied(room.trBookings||[])) n++;
-  if(isOccupied(room.lvBookings||[])) n++;
-  return n>=2;
+  const cur=new Date(y,m,d);
+  const all=[...(room.bookings||[]),...(room.bkBookings||[]),...(room.trBookings||[]),...(room.lvBookings||[])];
+  const occupied=all.filter(bk=>{
+    const cin=new Date(bk.cinY,bk.cinM,bk.cinD);
+    const cout=new Date(bk.coutY,bk.coutM,bk.coutD);
+    return cur>cin && cur<cout;
+  });
+  return occupied.length>=2;
 }
 
 function cellClsAndLbl(room,d,y,m){
