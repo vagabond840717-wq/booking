@@ -1071,7 +1071,7 @@ async function openDetail(ri,y,m,d){
   const badge=`<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px;background:var(--navy-light);color:var(--navy);border:1px solid rgba(30,58,138,0.2);">${r.name}</span>`;
   document.getElementById('detailTitle').innerHTML=badge+dateStr(y,m,d);
   let obHtml='';
-  if(allBks.length>=2) obHtml=`<div class="ob-warning">⚠️ 오버부킹 가능성! ${allBks.length}개 플랫폼 예약 중복</div>`;
+  if(isOverbooking(r,d,y,m)) obHtml=`<div class="ob-warning">⚠️ 오버부킹 가능성! ${allBks.length}개 플랫폼 예약 중복</div>`;
   let bkHtml=`<div class="d-section-title">예약 정보</div>`;
   if(!allBks.length){
     const bl=manualBlocks.find(b=>{if(b.roomName!==r.name)return false;const cur=new Date(y,m,d);return cur>=new Date(b.startY,b.startM,b.startD)&&cur<=new Date(b.endY,b.endM,b.endD);});
