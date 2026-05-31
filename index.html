@@ -174,6 +174,9 @@ thead { position: sticky; top: 0; z-index: 10; }
 .c-lv-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
 .c-lv-both      { background: #0a6e8a; color: #fff; border-color: transparent !important; }
 /* 블락 */
+.c-ab-block    { background: #6b7280; color: #e5e7eb; border-color: transparent !important; }
+.c-ab-block-checkin  { background: linear-gradient(90deg,#1d9460 50%,#6b7280 50%); color:#fff; border-color:transparent !important; }
+.c-ab-block-checkout { background: linear-gradient(90deg,#6b7280 50%,#e5503a 50%); color:#fff; border-color:transparent !important; }
 .c-bl-occupied { background: #2d333d; border-color: transparent !important; }
 .c-bl-block    { background: #3d4452; color: #c0c8d8; border-color: transparent !important; }
 /* 오버부킹 */
@@ -602,7 +605,9 @@ async function loadBookingsFromKV() {
     rooms.forEach(room=>{
       const bks=data[room.name];
       if(!bks) return;
-      room.bookings=bks.ab||[];
+      const ab=bks.ab||[];
+      room.bookings=ab.filter(b=>!b.summary?.toLowerCase().includes('not available'));
+      room.abBlocks=ab.filter(b=>b.summary?.toLowerCase().includes('not available'));
       room.bkBookings=bks.bk||[];
       room.trBookings=bks.tr||[];
       room.lvBookings=bks.lv||[];
@@ -641,18 +646,20 @@ function isOverbooking(room,d,y,m){
 
 function cellClsAndLbl(room,d,y,m){
   const ab=cellTypeFor(room.bookings||[],d,y,m);
+  const abBlk=cellTypeFor(room.abBlocks||[],d,y,m);
   const bk=cellTypeFor(room.bkBookings||[],d,y,m);
   const tr=cellTypeFor(room.trBookings||[],d,y,m);
   const lv=cellTypeFor(room.lvBookings||[],d,y,m);
   const bl=blockTypeFor(room.name,y,m,d);
   if(isOverbooking(room,d,y,m)) return{cls:'c-overbooking',lbl:'<span style="font-size:8px;color:var(--ob-color);font-weight:700;">⚠️</span>'};
-  const abE=ab==='empty',bkE=bk==='empty',trE=tr==='empty',lvE=lv==='empty',blE=bl==='empty';
-  if(abE&&bkE&&trE&&lvE&&blE) return{cls:'c-empty',lbl:''};
+  const abE=ab==='empty',abBlkE=abBlk==='empty',bkE=bk==='empty',trE=tr==='empty',lvE=lv==='empty',blE=bl==='empty';
+  if(abE&&abBlkE&&bkE&&trE&&lvE&&blE) return{cls:'c-empty',lbl:''};
   function io(ct){if(ct==='checkout')return 'out';if(ct==='checkin')return 'in';if(ct==='both')return '↕';return '';}
   function bothLbl(icon){return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">out</span><span style="font-size:7px;line-height:1;">in</span></span>`;}
 
-  if(!blE&&abE&&bkE&&trE&&lvE) return{cls:'c-bl-block',lbl:'<span class="cell-icon">🔒</span>'};
-  if(bkE&&trE&&lvE&&blE){const t=io(ab);if(!t)return{cls:'c-occupied',lbl:''};if(ab==='both')return{cls:'c-both',lbl:bothLbl()};return{cls:'c-'+ab,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${t}</span>`};}
+  if(!blE&&abE&&abBlkE&&bkE&&trE&&lvE) return{cls:'c-bl-block',lbl:'<span class="cell-icon">🔒</span>'};
+  if(!abBlkE&&abE&&bkE&&trE&&lvE&&blE){if(abBlk==='checkin')return{cls:'c-ab-block-checkin',lbl:'<span class="cell-txt">in</span>'};if(abBlk==='checkout')return{cls:'c-ab-block-checkout',lbl:'<span class="cell-txt">out</span>'};return{cls:'c-ab-block',lbl:'<span class="cell-icon">🚫</span>'};}
+  if(bkE&&trE&&lvE&&blE&&abBlkE){const t=io(ab);if(!t)return{cls:'c-occupied',lbl:''};if(ab==='both')return{cls:'c-both',lbl:bothLbl()};return{cls:'c-'+ab,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${t}</span>`};}
   if(abE&&trE&&lvE&&blE){const t=io(bk);if(!t)return{cls:'c-bk-occupied',lbl:''};if(bk==='both')return{cls:'c-bk-both',lbl:bothLbl()};return{cls:'c-bk-'+bk,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${t}</span>`};}
   if(abE&&bkE&&lvE&&blE){const t=io(tr);if(!t)return{cls:'c-tr-occupied',lbl:''};if(tr==='both')return{cls:'c-tr-both',lbl:bothLbl()};return{cls:'c-tr-'+tr,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${t}</span>`};}
   if(abE&&bkE&&trE&&blE){const t=io(lv);if(!t)return{cls:'c-lv-occupied',lbl:''};if(lv==='both')return{cls:'c-lv-both',lbl:bothLbl()};return{cls:'c-lv-'+lv,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${t}</span>`};}
