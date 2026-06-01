@@ -453,6 +453,11 @@ thead { position: sticky; top: 0; z-index: 10; }
         <div class="sheet-section-title">등록된 블락 (<span id="blockCount">0</span>)</div>
         <div id="blockList"></div>
       </div>
+      <div class="sheet-section">
+        <div class="sheet-section-title" style="color:#dc2626;">🗑 강제 해제 목록</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">↩ 버튼으로 다시 블락 복원 가능</div>
+        <div id="covSection"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -505,6 +510,7 @@ const ICAL_BASE = 'https://ical-proxy.vagabond1984.workers.dev/ical';
 let curY, curM, viewMode = 'multi';
 let rooms = [];
 let manualBlocks = [];
+let cancelOverrides = [];
 let dragSrcIdx = null;
 
 function today() { const d = new Date(); return {y:d.getFullYear(),m:d.getMonth(),d:d.getDate()}; }
@@ -570,6 +576,45 @@ function blockTypeFor(roomName,y,m,d) {
   return 'empty';
 }
 
+// ── CANCEL OVERRIDES ──
+function saveCancelOverrides(){
+  try{localStorage.setItem('hana_cov',JSON.stringify(cancelOverrides));}catch(e){}
+  fetch(`${PROXY}/extra`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'cancel_overrides',data:cancelOverrides})}).catch(()=>{});
+}
+async function loadCancelOverrides(){
+  try{
+    const resp=await fetch(`${PROXY}/extra?key=cancel_overrides`);
+    if(resp.ok){const data=await resp.json();cancelOverrides=Array.isArray(data)?data:[];return;}
+  }catch(e){}
+  try{cancelOverrides=JSON.parse(localStorage.getItem('hana_cov')||'[]');}catch(e){cancelOverrides=[];}
+}
+function isOverridden(roomName,bk){
+  return cancelOverrides.some(ov=>{
+    if(ov.roomName!==roomName)return false;
+    const bkS=new Date(bk.cinY,bk.cinM,bk.cinD);
+    const bkE=new Date(bk.coutY,bk.coutM,bk.coutD);
+    const ovS=new Date(ov.startY,ov.startM,ov.startD);
+    const ovE=new Date(ov.endY,ov.endM,ov.endD);
+    return bkS>=ovS&&bkE<=ovE;
+  });
+}
+function addCancelOverride(ri,cinY,cinM,cinD,coutY,coutM,coutD){
+  const r=rooms[ri];
+  if(!confirm(`${r.name}  ${dateStr(cinY,cinM,cinD)} ~ ${dateStr(coutY,coutM,coutD)}\n이 예약 블락을 앱에서 강제 해제할까요?\n\n⚠️ 앱 표시만 해제됩니다.\n실제 취소 여부는 Airbnb에서 반드시 확인하세요.`))return;
+  cancelOverrides.push({roomName:r.name,startY:cinY,startM:cinM,startD:cinD,endY:coutY,endM:coutM,endD:coutD,addedAt:nowStr()});
+  saveCancelOverrides();
+  loadBookingsFromKV().then(()=>{render();checkOverbooking();});
+  document.getElementById('detailPanel').classList.remove('open');
+  showToast('강제 해제됐어요 ✓');
+}
+function removeCancelOverride(idx){
+  cancelOverrides.splice(idx,1);
+  saveCancelOverrides();
+  loadBookingsFromKV().then(()=>{render();checkOverbooking();});
+  renderBlockPanel();
+  showToast('해제 복원됐어요');
+}
+
 // ── EXTRA ──
 function getExtra(key){try{return JSON.parse(localStorage.getItem('hana_ex_'+key)||'null')||{passwords:[],memos:[]};}catch(e){return{passwords:[],memos:[]};}}
 function setExtra(key,data){
@@ -606,11 +651,11 @@ async function loadBookingsFromKV() {
       const bks=data[room.name];
       if(!bks) return;
       const ab=bks.ab||[];
-      room.bookings=ab.filter(b=>!b.summary?.toLowerCase().includes('not available'));
-      room.abBlocks=ab.filter(b=>b.summary?.toLowerCase().includes('not available'));
-      room.bkBookings=bks.bk||[];
-      room.trBookings=bks.tr||[];
-      room.lvBookings=bks.lv||[];
+      room.bookings=ab.filter(b=>!b.summary?.toLowerCase().includes('not available')&&!isOverridden(room.name,b));
+      room.abBlocks=ab.filter(b=>b.summary?.toLowerCase().includes('not available')&&!isOverridden(room.name,b));
+      room.bkBookings=(bks.bk||[]).filter(b=>!isOverridden(room.name,b));
+      room.trBookings=(bks.tr||[]).filter(b=>!isOverridden(room.name,b));
+      room.lvBookings=(bks.lv||[]).filter(b=>!isOverridden(room.name,b));
     });
   }catch(e){}
 }
@@ -1098,6 +1143,7 @@ async function openDetail(ri,y,m,d){
         <div class="bk-info-row"><span class="bk-info-label">박수</span><span class="bk-info-value highlight">${nights}박</span></div>
         ${isOut?'<div style="font-size:11px;color:var(--ab-out);font-weight:600;">← 오늘 체크아웃</div>':''}
         ${isIn?'<div style="font-size:11px;color:var(--ab-in);font-weight:600;">← 오늘 체크인</div>':''}
+        <button onclick="addCancelOverride(${ri},${bk.cinY},${bk.cinM},${bk.cinD},${bk.coutY},${bk.coutM},${bk.coutD})" style="width:100%;margin-top:8px;padding:7px;font-size:11px;font-weight:600;background:rgba(220,38,38,0.07);color:#dc2626;border:1px solid rgba(220,38,38,0.2);border-radius:var(--r);cursor:pointer;font-family:'DM Sans',sans-serif;">🗑 앱에서 강제 해제 (취소된 예약용)</button>
       </div>`;
     }
   }
@@ -1173,19 +1219,38 @@ function renderBlockPanel(){
 function renderBlockList(){
   const list=document.getElementById('blockList');
   document.getElementById('blockCount').textContent=manualBlocks.length;
-  if(!manualBlocks.length){list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;">등록된 블락이 없어요.</div>';return;}
-  list.innerHTML=manualBlocks.map((bl,i)=>`
-    <div class="block-item">
-      <div class="room-dot" style="background:${rooms.find(r=>r.name===bl.roomName)?.color||'#666'}"></div>
-      <div class="block-item-info">
-        <div class="block-item-dates">🔒 ${bl.roomName} · ${dateStr(bl.startY,bl.startM,bl.startD)} ~ ${dateStr(bl.endY,bl.endM,bl.endD)}</div>
-        ${bl.reason?`<div class="block-item-reason">${bl.reason}</div>`:''}
-      </div>
-      <button class="block-del" data-idx="${i}">✕</button>
-    </div>`).join('');
-  list.querySelectorAll('.block-del').forEach(btn=>{
-    btn.onclick=()=>{manualBlocks.splice(+btn.dataset.idx,1);saveBlocks();render();renderBlockList();showToast('블락 해제됨');};
-  });
+  if(!manualBlocks.length){list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;">등록된 블락이 없어요.</div>';}
+  else{
+    list.innerHTML=manualBlocks.map((bl,i)=>`
+      <div class="block-item">
+        <div class="room-dot" style="background:${rooms.find(r=>r.name===bl.roomName)?.color||'#666'}"></div>
+        <div class="block-item-info">
+          <div class="block-item-dates">🔒 ${bl.roomName} · ${dateStr(bl.startY,bl.startM,bl.startD)} ~ ${dateStr(bl.endY,bl.endM,bl.endD)}</div>
+          ${bl.reason?`<div class="block-item-reason">${bl.reason}</div>`:''}
+        </div>
+        <button class="block-del" data-idx="${i}">✕</button>
+      </div>`).join('');
+    list.querySelectorAll('.block-del').forEach(btn=>{
+      btn.onclick=()=>{manualBlocks.splice(+btn.dataset.idx,1);saveBlocks();render();renderBlockList();showToast('블락 해제됨');};
+    });
+  }
+  // 강제 해제 목록
+  const covSection=document.getElementById('covSection');
+  if(covSection){
+    if(!cancelOverrides.length){
+      covSection.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;">강제 해제된 항목 없음</div>';
+    } else {
+      covSection.innerHTML=cancelOverrides.map((ov,i)=>`
+        <div class="block-item" style="border-color:rgba(220,38,38,0.25);background:rgba(220,38,38,0.04);">
+          <div class="room-dot" style="background:${rooms.find(r=>r.name===ov.roomName)?.color||'#666'}"></div>
+          <div class="block-item-info">
+            <div class="block-item-dates" style="color:#dc2626;">🗑 ${ov.roomName} · ${dateStr(ov.startY,ov.startM,ov.startD)} ~ ${dateStr(ov.endY,ov.endM,ov.endD)}</div>
+            <div class="block-item-reason">${ov.addedAt} 강제해제</div>
+          </div>
+          <button class="block-del" onclick="removeCancelOverride(${i})" title="복원">↩</button>
+        </div>`).join('');
+    }
+  }
 }
 
 // ── SETTINGS ──
@@ -1384,6 +1449,7 @@ document.getElementById('blockAddBtn').onclick=()=>{
 async function init(){
   const t=today();curY=t.y;curM=t.m;
   await loadBlocks();
+  await loadCancelOverrides();
   await loadRooms();
   render();
   await triggerSync();
