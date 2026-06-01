@@ -598,14 +598,28 @@ function isOverridden(roomName,bk){
     return bkS>=ovS&&bkE<=ovE;
   });
 }
-function addCancelOverride(ri,cinY,cinM,cinD,coutY,coutM,coutD){
+async function addCancelOverride(ri,cinY,cinM,cinD,coutY,coutM,coutD,platform){
   const r=rooms[ri];
-  if(!confirm(`${r.name}  ${dateStr(cinY,cinM,cinD)} ~ ${dateStr(coutY,coutM,coutD)}\n이 예약 블락을 앱에서 강제 해제할까요?\n\n⚠️ 앱 표시만 해제됩니다.\n실제 취소 여부는 Airbnb에서 반드시 확인하세요.`))return;
+  if(!confirm(`${r.name}  ${dateStr(cinY,cinM,cinD)} ~ ${dateStr(coutY,coutM,coutD)}\n이 블락을 해제할까요?`))return;
+  document.getElementById('detailPanel').classList.remove('open');
+  showToast('해제 중...');
+  // 플랫폼 키 변환 (airbnb→ab, ab-block→ab, booking→bk, trip→tr, lv→lv)
+  const platKey=platform==='airbnb'||platform==='ab-block'?'ab':platform==='booking'?'bk':platform==='trip'?'tr':'lv';
+  // 서버 KV에서 직접 삭제 → iCal도 즉시 반영
+  try{
+    await fetch(`${PROXY}/bookings/remove`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({roomName:r.name,platform:platKey,cinY,cinM,cinD,coutY,coutM,coutD})
+    });
+  }catch(e){}
+  // 혹시 다음 자동 sync에서 다시 들어오는 것도 차단
   cancelOverrides.push({roomName:r.name,startY:cinY,startM:cinM,startD:cinD,endY:coutY,endM:coutM,endD:coutD,addedAt:nowStr()});
   saveCancelOverrides();
-  loadBookingsFromKV().then(()=>{render();checkOverbooking();});
-  document.getElementById('detailPanel').classList.remove('open');
-  showToast('강제 해제됐어요 ✓');
+  await loadBookingsFromKV();
+  render();
+  checkOverbooking();
+  showToast('해제 완료 ✓');
 }
 function removeCancelOverride(idx){
   cancelOverrides.splice(idx,1);
@@ -1144,7 +1158,7 @@ async function openDetail(ri,y,m,d){
         <div class="bk-info-row"><span class="bk-info-label">박수</span><span class="bk-info-value highlight">${nights}박</span></div>
         ${isOut?'<div style="font-size:11px;color:var(--ab-out);font-weight:600;">← 오늘 체크아웃</div>':''}
         ${isIn?'<div style="font-size:11px;color:var(--ab-in);font-weight:600;">← 오늘 체크인</div>':''}
-        <button onclick="addCancelOverride(${ri},${bk.cinY},${bk.cinM},${bk.cinD},${bk.coutY},${bk.coutM},${bk.coutD})" style="width:100%;margin-top:8px;padding:7px;font-size:11px;font-weight:600;background:rgba(220,38,38,0.07);color:#dc2626;border:1px solid rgba(220,38,38,0.2);border-radius:var(--r);cursor:pointer;font-family:'DM Sans',sans-serif;">🗑 앱에서 강제 해제 (취소된 예약용)</button>
+        <button onclick="addCancelOverride(${ri},${bk.cinY},${bk.cinM},${bk.cinD},${bk.coutY},${bk.coutM},${bk.coutD},'${bk.platform}')" style="width:100%;margin-top:8px;padding:7px;font-size:11px;font-weight:600;background:rgba(220,38,38,0.07);color:#dc2626;border:1px solid rgba(220,38,38,0.2);border-radius:var(--r);cursor:pointer;font-family:'DM Sans',sans-serif;">🗑 앱에서 강제 해제 (취소된 예약용)</button>
       </div>`;
     }
   }
