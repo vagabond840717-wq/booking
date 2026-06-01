@@ -1114,12 +1114,13 @@ function findAllIn(bookings,y,m,d){
 async function openDetail(ri,y,m,d){
   const r=rooms[ri];
   const abBks=findAllIn(r.bookings||[],y,m,d).map(b=>({...b,platform:'airbnb'}));
+  const abBlkBks=findAllIn(r.abBlocks||[],y,m,d).map(b=>({...b,platform:'ab-block'}));
   const bkBks=findAllIn(r.bkBookings||[],y,m,d).map(b=>({...b,platform:'booking'}));
   const trBks=findAllIn(r.trBookings||[],y,m,d).map(b=>({...b,platform:'trip'}));
   const lvBks=findAllIn(r.lvBookings||[],y,m,d).map(b=>({...b,platform:'lv'}));
-  const allBks=[...abBks,...bkBks,...trBks,...lvBks];
-  const pLabel={airbnb:'✈ Airbnb',booking:'🏨 Booking.com',trip:'🌐 Trip.com',lv:'🏡 리브애니웨어'};
-  const pColor={airbnb:'var(--ab-out)',booking:'var(--bk-out)',trip:'var(--tr-out)',lv:'var(--lv-out)'};
+  const allBks=[...abBks,...abBlkBks,...bkBks,...trBks,...lvBks];
+  const pLabel={airbnb:'✈ Airbnb','ab-block':'🚫 Airbnb 블락 (취소잔여)',booking:'🏨 Booking.com',trip:'🌐 Trip.com',lv:'🏡 리브애니웨어'};
+  const pColor={airbnb:'var(--ab-out)','ab-block':'#6b7280',booking:'var(--bk-out)',trip:'var(--tr-out)',lv:'var(--lv-out)'};
   const badge=`<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px;background:var(--navy-light);color:var(--navy);border:1px solid rgba(30,58,138,0.2);">${r.name}</span>`;
   document.getElementById('detailTitle').innerHTML=badge+dateStr(y,m,d);
   let obHtml='';
