@@ -606,20 +606,26 @@ async function addCancelOverride(ri,cinY,cinM,cinD,coutY,coutM,coutD,platform){
   // 플랫폼 키 변환 (airbnb→ab, ab-block→ab, booking→bk, trip→tr, lv→lv)
   const platKey=platform==='airbnb'||platform==='ab-block'?'ab':platform==='booking'?'bk':platform==='trip'?'tr':'lv';
   // 서버 KV에서 직접 삭제 → iCal도 즉시 반영
+  let removeOk = false;
   try{
-    await fetch(`${PROXY}/bookings/remove`,{
+    const res = await fetch(`${PROXY}/bookings/remove`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({roomName:r.name,platform:platKey,cinY,cinM,cinD,coutY,coutM,coutD})
     });
+    removeOk = res.ok;
   }catch(e){}
-  // 혹시 다음 자동 sync에서 다시 들어오는 것도 차단
+  // 앱 내에서 해제 상태 유지 (서버 실패해도 이 앱에서는 안 보임)
   cancelOverrides.push({roomName:r.name,startY:cinY,startM:cinM,startD:cinD,endY:coutY,endM:coutM,endD:coutD,addedAt:nowStr()});
   saveCancelOverrides();
   await loadBookingsFromKV();
   render();
   checkOverbooking();
-  showToast('해제 완료 ✓');
+  if(removeOk){
+    showToast('해제 완료 ✓');
+  } else {
+    showToast('⚠ 앱에서만 숨김 처리됐어요. 새로고침하면 다시 나타날 수 있어요.');
+  }
 }
 function removeCancelOverride(idx){
   cancelOverrides.splice(idx,1);
