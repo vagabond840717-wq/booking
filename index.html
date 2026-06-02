@@ -977,10 +977,10 @@ function renderWeek(){
 function renderMulti(){
   if(!rooms.length) return emptyState();
   const t2=today();
-  // 연속뷰는 항상 오늘 달 기준으로 6개월
+  // curY, curM 기준으로 6개월 (이전/다음 버튼 반응)
   const months=[];
   for(let i=0;i<MONTHS_TO_SHOW;i++){
-    let y=t2.y,m=t2.m+i;
+    let y=curY,m=curM+i;
     while(m>11){m-=12;y++;}
     months.push({y,m});
   }
@@ -1026,8 +1026,8 @@ function emptyState(){
 function render(){
   const isMulti=viewMode==='multi';
   document.getElementById('monthDisplay').textContent=`${curY}. ${String(curM+1).padStart(2,'0')}`;
-  document.getElementById('prevBtn').style.visibility=isMulti?'hidden':'visible';
-  document.getElementById('nextBtn').style.visibility=isMulti?'hidden':'visible';
+  document.getElementById('prevBtn').style.visibility='visible';
+  document.getElementById('nextBtn').style.visibility='visible';
   if(viewMode==='month'){document.getElementById('calendarArea').innerHTML=renderMonth();attachMonthSwipe();}
   else if(viewMode==='week') document.getElementById('calendarArea').innerHTML=renderWeek();
   else document.getElementById('calendarArea').innerHTML=renderMulti();
