@@ -177,6 +177,15 @@ thead { position: sticky; top: 0; z-index: 10; }
 .c-ab-block    { background: #6b7280; color: #e5e7eb; border-color: transparent !important; }
 .c-ab-block-checkin  { background: linear-gradient(90deg,#1d9460 50%,#6b7280 50%); color:#fff; border-color:transparent !important; }
 .c-ab-block-checkout { background: linear-gradient(90deg,#6b7280 50%,#e5503a 50%); color:#fff; border-color:transparent !important; }
+/* 플랫폼 체크아웃/인 + 블락 조합 */
+.c-ab-blk-checkout  { background: linear-gradient(90deg,#e5503a 50%,#6b7280 50%); color:#fff; border-color:transparent !important; }
+.c-ab-blk-checkin   { background: linear-gradient(90deg,#6b7280 50%,#22a06b 50%); color:#fff; border-color:transparent !important; }
+.c-bk-blk-checkout  { background: linear-gradient(90deg,#1a6fcc 50%,#6b7280 50%); color:#fff; border-color:transparent !important; }
+.c-bk-blk-checkin   { background: linear-gradient(90deg,#6b7280 50%,#3a9fd8 50%); color:#fff; border-color:transparent !important; }
+.c-tr-blk-checkout  { background: linear-gradient(90deg,#e5503a 50%,#6b7280 50%); color:#fff; border-color:transparent !important; }
+.c-tr-blk-checkin   { background: linear-gradient(90deg,#6b7280 50%,#1d9460 50%); color:#fff; border-color:transparent !important; }
+.c-lv-blk-checkout  { background: linear-gradient(90deg,#0a6e8a 50%,#6b7280 50%); color:#fff; border-color:transparent !important; }
+.c-lv-blk-checkin   { background: linear-gradient(90deg,#6b7280 50%,#a855f7 50%); color:#fff; border-color:transparent !important; }
 .c-bl-occupied { background: #2d333d; border-color: transparent !important; }
 .c-bl-block    { background: #3d4452; color: #c0c8d8; border-color: transparent !important; }
 /* 오버부킹 */
@@ -194,7 +203,7 @@ thead { position: sticky; top: 0; z-index: 10; }
 .checkout-card strong { color: var(--ab-out); font-weight: 600; }
 .checkout-card span { color: var(--text2); }
 
-.multi-month-label { font-size: 11px; color: var(--navy); font-family: 'DM Mono', monospace; font-weight: 600; padding: 0 6px 6px; white-space: nowrap; border-bottom: 1px solid var(--border2); border-left: 2px solid var(--navy); background: var(--bg); }
+.multi-month-label { font-size: 11px; color: var(--navy); font-family: 'DM Mono', monospace; font-weight: 600; padding: 0 6px 6px; white-space: nowrap; border-bottom: 1px solid var(--border2); border-left: 2px solid var(--navy); background: var(--bg); text-align: left; }
 
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 13px; line-height: 1.8; }
 .empty-state .big { font-size: 28px; margin-bottom: 10px; }
@@ -725,11 +734,19 @@ function cellClsAndLbl(room,d,y,m){
   if(!blE&&abE&&abBlkE&&bkE&&trE&&lvE) return{cls:'c-bl-block',lbl:'<span class="cell-icon">🔒</span>'};
   if(!abBlkE&&abE&&bkE&&trE&&lvE&&blE){if(abBlk==='checkout')return{cls:'c-ab-block-checkout',lbl:'<span class="cell-txt">아웃</span>'};return{cls:'c-ab-block',lbl:'<span class="cell-icon">🚫</span>'};}
   if(bkE&&trE&&lvE&&blE&&abBlkE){const t=io(ab);if(!t)return{cls:'c-occupied',lbl:''};if(ab==='both')return{cls:'c-both',lbl:bothLbl()};return{cls:'c-'+ab,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&trE&&lvE&&blE){const t=io(bk);if(!t)return{cls:'c-bk-occupied',lbl:''};if(bk==='both')return{cls:'c-bk-both',lbl:bothLbl()};return{cls:'c-bk-'+bk,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&bkE&&lvE&&blE){const t=io(tr);if(!t)return{cls:'c-tr-occupied',lbl:''};if(tr==='both')return{cls:'c-tr-both',lbl:bothLbl()};return{cls:'c-tr-'+tr,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&bkE&&trE&&blE){const t=io(lv);if(!t)return{cls:'c-lv-occupied',lbl:''};if(lv==='both')return{cls:'c-lv-both',lbl:bothLbl()};return{cls:'c-lv-'+lv,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&trE&&lvE&&blE&&abBlkE){const t=io(bk);if(!t)return{cls:'c-bk-occupied',lbl:''};if(bk==='both')return{cls:'c-bk-both',lbl:bothLbl()};return{cls:'c-bk-'+bk,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&bkE&&lvE&&blE&&abBlkE){const t=io(tr);if(!t)return{cls:'c-tr-occupied',lbl:''};if(tr==='both')return{cls:'c-tr-both',lbl:bothLbl()};return{cls:'c-tr-'+tr,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&bkE&&trE&&blE&&abBlkE){const t=io(lv);if(!t)return{cls:'c-lv-occupied',lbl:''};if(lv==='both')return{cls:'c-lv-both',lbl:bothLbl()};return{cls:'c-lv-'+lv,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${t}</span>`};}
+  // 플랫폼 체크아웃/인 + 에어비앤비 블락 조합 (반반 분할 표시)
+  if(!abBlkE&&blE){
+    if(!abE&&bkE&&trE&&lvE&&(ab==='checkout'||ab==='checkin')) return{cls:`c-ab-blk-${ab}`,lbl:`<span class="cell-txt">${io(ab)}</span>`};
+    if(abE&&!bkE&&trE&&lvE&&(bk==='checkout'||bk==='checkin')) return{cls:`c-bk-blk-${bk}`,lbl:`<span class="cell-txt">${io(bk)}</span>`};
+    if(abE&&bkE&&!trE&&lvE&&(tr==='checkout'||tr==='checkin')) return{cls:`c-tr-blk-${tr}`,lbl:`<span class="cell-txt">${io(tr)}</span>`};
+    if(abE&&bkE&&trE&&!lvE&&(lv==='checkout'||lv==='checkin')) return{cls:`c-lv-blk-${lv}`,lbl:`<span class="cell-txt">${io(lv)}</span>`};
+  }
   const parts=[];
   if(!abE) parts.push(`<span style="font-size:7px;color:var(--ab-out);">✈${io(ab)}</span>`);
+  if(!abBlkE) parts.push(`<span style="font-size:7px;color:#6b7280;">🚫</span>`);
   if(!bkE) parts.push(`<span style="font-size:7px;color:var(--bk-out);">🏨${io(bk)}</span>`);
   if(!trE) parts.push(`<span style="font-size:7px;color:var(--tr-out);">🌐${io(tr)}</span>`);
   if(!lvE) parts.push(`<span style="font-size:7px;color:var(--lv-out);">🏡${io(lv)}</span>`);
@@ -1599,14 +1616,17 @@ async function renderNotifyEvents() {
       const timeStr = `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
       const isNew = e.type === 'new';
       const isTest = e.type === 'test';
-      const icon = isTest ? '🔔' : (isNew ? '📅' : '❌');
-      const color = isTest ? '#6b7280' : (isNew ? '#1e3a8a' : '#991b1b');
-      const bgColor = e.read ? 'var(--surface2)' : (isTest ? '#f9fafb' : (isNew ? '#eff6ff' : '#fff1f2'));
+      const isError = e.type === 'error';
+      const icon = isTest ? '🔔' : isNew ? '📅' : isError ? '⚠️' : '❌';
+      const color = isTest ? '#6b7280' : isNew ? '#1e3a8a' : isError ? '#92400e' : '#991b1b';
+      const bgColor = e.read ? 'var(--surface2)' : isTest ? '#f9fafb' : isNew ? '#eff6ff' : isError ? '#fffbeb' : '#fff1f2';
       const body = isTest
         ? '푸시 알림 테스트'
-        : (isNew
+        : isNew
           ? `${e.platform} ${e.cin}~${e.cout}`
-          : `${e.platform}${e.cin ? ' ' + e.cin + '~' + e.cout : ''} 취소`);
+          : isError
+            ? `${e.platform} iCal 연결 오류 (15분 이상 실패)`
+            : `${e.platform}${e.cin ? ' ' + e.cin + '~' + e.cout : ''} 취소`;
       return `<div id="ev_${e.id}" style="background:${bgColor};border-radius:12px;padding:12px 14px;border:1px solid var(--border2);opacity:${e.read?'0.6':'1'}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
