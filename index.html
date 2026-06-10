@@ -453,6 +453,60 @@ thead { position: sticky; top: 0; z-index: 10; }
   font-size: 13px; line-height: 1.8;
 }
 .stats-empty strong { display: block; font-size: 32px; margin-bottom: 12px; }
+
+/* ── 청소 통계 ── */
+.stats-view-tabs { display: flex; gap: 4px; padding: 10px 16px 0; }
+.stats-vtab {
+  padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
+  cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; flex-shrink: 0;
+}
+.stats-vtab.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+.stats-fee-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.stats-fee-label { font-size: 11px; color: var(--text2); white-space: nowrap; }
+.stats-fee-input {
+  width: 76px; padding: 5px 8px; font-size: 12px; font-family: 'DM Mono', monospace;
+  background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r);
+  color: var(--navy); outline: none; text-align: right;
+}
+.stats-fee-input:focus { border-color: var(--navy); }
+
+.stats-cell.clean-cell { flex-direction: column; gap: 1px; height: 42px; }
+.stats-clean-count { font-size: 10px; font-weight: 700; line-height: 1; }
+.stats-clean-cost  { font-size: 8px; font-weight: 500; line-height: 1; opacity: 0.85; }
+
+.clean-0 { background: var(--surface2); color: var(--text3); }
+.clean-1 { background: #fff7ed; color: #c2410c; }
+.clean-2 { background: #ffedd5; color: #c2410c; }
+.clean-3 { background: #fed7aa; color: #9a3412; }
+.clean-4 { background: #fb923c; color: #fff; }
+.clean-5 { background: #ea580c; color: #fff; }
+.clean-6 { background: #c2410c; color: #fff; }
+
+/* ── 반응형: 데스크탑 (768px 이상) ── */
+@media (min-width: 768px) {
+  .stats-header { padding: 18px 40px 14px; }
+  .stats-view-tabs { padding: 12px 40px 0; }
+  .stats-platform-tabs { padding: 10px 40px 0; }
+  .stats-fee-row { padding: 10px 40px; }
+  .stats-grid-wrap { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
+  .stats-cell { width: 54px; height: 44px; font-size: 11px; }
+  .stats-cell.clean-cell { height: 50px; }
+  .stats-clean-count { font-size: 12px; }
+  .stats-clean-cost  { font-size: 9px; }
+  .stats-month-th { min-width: 58px; font-size: 11px; }
+  .stats-room-th  { min-width: 80px; font-size: 12px; }
+  .stats-room-td  { font-size: 12px; padding-right: 16px; }
+  .stats-total-td { font-size: 12px; padding-right: 16px; }
+  .stats-fee-input { width: 90px; font-size: 13px; }
+  .stats-fee-label { font-size: 12px; }
+  .stats-vtab { font-size: 13px; padding: 6px 18px; }
+}
 </style>
 </head>
 <body>
@@ -614,8 +668,12 @@ thead { position: sticky; top: 0; z-index: 10; }
 
 <div class="stats-overlay" id="statsPanel">
   <div class="stats-header">
-    <div class="stats-title">📊 점유율 통계</div>
+    <div class="stats-title">📊 통계</div>
     <button class="stats-close" id="statsClose">✕</button>
+  </div>
+  <div class="stats-view-tabs" id="statsViewTabs">
+    <button class="stats-vtab active" data-view="occupancy">점유율</button>
+    <button class="stats-vtab" data-view="cleaning">청소비용</button>
   </div>
   <div class="stats-platform-tabs" id="statsPlatformTabs">
     <button class="stats-ptab active" data-platform="all">전체</button>
@@ -623,6 +681,14 @@ thead { position: sticky; top: 0; z-index: 10; }
     <button class="stats-ptab" data-platform="bk">🏨 Booking</button>
     <button class="stats-ptab" data-platform="tr">🌐 Trip</button>
     <button class="stats-ptab" data-platform="lv">🏡 리브애니웨어</button>
+  </div>
+  <div class="stats-fee-row" id="statsFeeRow" style="display:none;">
+    <span class="stats-fee-label">단기(~3박)</span>
+    <input class="stats-fee-input" id="feeShortInput" type="number" value="25000" min="0">
+    <span class="stats-fee-label">원</span>
+    <span class="stats-fee-label" style="margin-left:8px;">장기(4박~)</span>
+    <input class="stats-fee-input" id="feeLongInput" type="number" value="45000" min="0">
+    <span class="stats-fee-label">원</span>
   </div>
   <div class="stats-body">
     <div class="stats-grid-wrap">
@@ -1521,6 +1587,9 @@ function copyUrl(url,btn){
 // ── STATS ──
 let archiveData = {};
 let statsPlatform = 'all';
+let statsView = 'occupancy';
+let cleanFeeShort = parseInt(localStorage.getItem('hana_clean_fee_short') || '25000', 10);
+let cleanFeeLong  = parseInt(localStorage.getItem('hana_clean_fee_long')  || '45000', 10);
 
 async function loadArchive() {
   try {
@@ -1567,7 +1636,128 @@ function occClass(days, total) {
   return 'occ-8';
 }
 
+function calcCleanings(roomName, platform, year, month) {
+  const roomData = archiveData[roomName];
+  if (!roomData) return { short: 0, long: 0, noData: true };
+  const keys = platform === 'all' ? ['ab','bk','tr','lv'] : [platform];
+  if (!keys.some(k => (roomData[k]||[]).length > 0)) return { short: 0, long: 0, noData: true };
+  let shortCnt = 0, longCnt = 0;
+  for (const key of keys) {
+    for (const bk of (roomData[key]||[])) {
+      if (bk.coutY === year && bk.coutM === month) {
+        const nights = Math.round(
+          (new Date(bk.coutY, bk.coutM, bk.coutD) - new Date(bk.cinY, bk.cinM, bk.cinD))
+          / 86400000
+        );
+        if (nights <= 3) shortCnt++; else longCnt++;
+      }
+    }
+  }
+  return { short: shortCnt, long: longCnt, noData: false };
+}
+
+function cleanClass(n) {
+  if (n === 0) return 'clean-0';
+  if (n <= 2)  return 'clean-' + n;
+  if (n <= 4)  return 'clean-3';
+  if (n <= 6)  return 'clean-' + (n - 1);
+  return 'clean-6';
+}
+
+function fmtWon(n) {
+  return '₩' + n.toLocaleString('ko-KR');
+}
+
+function renderCleaningStats() {
+  const grid = document.getElementById('statsGrid');
+  const t = today();
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    let y = t.y, m = t.m - i;
+    while (m < 0) { m += 12; y--; }
+    months.push({ y, m });
+  }
+
+  const hasData = Object.keys(archiveData).length > 0 &&
+    rooms.some(r => {
+      const rd = archiveData[r.name];
+      return rd && ['ab','bk','tr','lv'].some(k => (rd[k]||[]).length > 0);
+    });
+
+  if (!rooms.length || !hasData) {
+    grid.innerHTML = `<div class="stats-empty"><strong>🧹</strong>아직 데이터가 없어요.<br>Sync를 실행하면 이번 달부터 쌓이기 시작해요.</div>`;
+    return;
+  }
+
+  const thead = `<tr>
+    <th class="stats-room-th">호실</th>
+    ${months.map(({y,m}) => {
+      const isCur = y===t.y && m===t.m;
+      const label = y!==t.y ? `${String(y).slice(2)}/${m+1}` : `${m+1}월`;
+      return `<th class="stats-month-th${isCur?' cur-month':''}">${label}</th>`;
+    }).join('')}
+  </tr>`;
+
+  const roomRows = rooms.map(r => {
+    const cells = months.map(({y,m}) => {
+      const {short, long, noData} = calcCleanings(r.name, statsPlatform, y, m);
+      if (noData) return `<td class="stats-cell-td"><div class="stats-cell no-data">—</div></td>`;
+      const total = short + long;
+      const cost  = short * cleanFeeShort + long * cleanFeeLong;
+      const cls   = cleanClass(total);
+      const tip   = `단기 ${short}회 · 장기 ${long}회 · ${fmtWon(cost)}`;
+      return `<td class="stats-cell-td"><div class="stats-cell clean-cell ${cls}" data-tip="${tip}">
+        <span class="stats-clean-count">${total}회</span>
+        <span class="stats-clean-cost">${total > 0 ? '₩'+Math.round(cost/1000)+'k' : ''}</span>
+      </div></td>`;
+    }).join('');
+    return `<tr><td class="stats-room-td"><span class="room-dot-s" style="background:${r.color}"></span>${r.name}</td>${cells}</tr>`;
+  }).join('');
+
+  const totalCells = months.map(({y,m}) => {
+    let sumShort = 0, sumLong = 0, validCount = 0;
+    for (const r of rooms) {
+      const {short, long, noData} = calcCleanings(r.name, statsPlatform, y, m);
+      if (!noData) { sumShort += short; sumLong += long; validCount++; }
+    }
+    if (!validCount) return `<td class="stats-total-cell-td"><div class="stats-cell no-data">—</div></td>`;
+    const total = sumShort + sumLong;
+    const cost  = sumShort * cleanFeeShort + sumLong * cleanFeeLong;
+    const cls   = cleanClass(Math.min(total, 6));
+    return `<td class="stats-total-cell-td"><div class="stats-cell clean-cell ${cls}" data-tip="${total}회 · ${fmtWon(cost)}">
+      <span class="stats-clean-count">${total}회</span>
+      <span class="stats-clean-cost">₩${Math.round(cost/1000)}k</span>
+    </div></td>`;
+  }).join('');
+
+  const totalRow = `<tr><td class="stats-total-td">합계</td>${totalCells}</tr>`;
+  grid.innerHTML = `<table class="stats-table"><thead>${thead}</thead><tbody>${roomRows}${totalRow}</tbody></table>`;
+
+  grid.querySelectorAll('.stats-cell[data-tip]').forEach(cell => {
+    cell.addEventListener('click', e => {
+      const wasActive = cell.classList.contains('tip-active');
+      grid.querySelectorAll('.stats-cell.tip-active').forEach(c => {
+        c.classList.remove('tip-active');
+        c.querySelector('.stats-tooltip')?.remove();
+      });
+      if (!wasActive) {
+        cell.classList.add('tip-active');
+        const tip = document.createElement('div');
+        tip.className = 'stats-tooltip';
+        tip.textContent = cell.dataset.tip;
+        cell.appendChild(tip);
+      }
+      e.stopPropagation();
+    });
+  });
+}
+
 function renderStats() {
+  if (statsView === 'cleaning') renderCleaningStats();
+  else renderOccupancy();
+}
+
+function renderOccupancy() {
   const grid = document.getElementById('statsGrid');
   const t = today();
   const months = [];
@@ -1646,6 +1836,8 @@ function renderStats() {
 
 function openStatsPanel() {
   document.getElementById('statsPanel').classList.add('open');
+  document.getElementById('feeShortInput').value = cleanFeeShort;
+  document.getElementById('feeLongInput').value  = cleanFeeLong;
   renderStats();
 }
 function closeStatsPanel() {
@@ -1685,6 +1877,24 @@ document.getElementById('statsPlatformTabs').addEventListener('click',e=>{
   btn.classList.add('active');
   statsPlatform=btn.dataset.platform;
   renderStats();
+});
+document.getElementById('statsViewTabs').addEventListener('click',e=>{
+  const btn=e.target.closest('.stats-vtab');
+  if(!btn) return;
+  document.querySelectorAll('.stats-vtab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  statsView=btn.dataset.view;
+  document.getElementById('statsFeeRow').style.display=statsView==='cleaning'?'flex':'none';
+  renderStats();
+});
+['feeShortInput','feeLongInput'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',()=>{
+    cleanFeeShort=parseInt(document.getElementById('feeShortInput').value,10)||0;
+    cleanFeeLong =parseInt(document.getElementById('feeLongInput').value,10)||0;
+    localStorage.setItem('hana_clean_fee_short',cleanFeeShort);
+    localStorage.setItem('hana_clean_fee_long', cleanFeeLong);
+    if(statsView==='cleaning') renderCleaningStats();
+  });
 });
 
 // 날짜 검색
