@@ -1891,16 +1891,19 @@ async function renderNotifyEvents() {
       const isNew = e.type === 'new';
       const isTest = e.type === 'test';
       const isError = e.type === 'error';
-      const icon = isTest ? '🔔' : isNew ? '📅' : isError ? '⚠️' : '❌';
-      const color = isTest ? '#6b7280' : isNew ? '#1e3a8a' : isError ? '#92400e' : '#991b1b';
-      const bgColor = e.read ? 'var(--surface2)' : isTest ? '#f9fafb' : isNew ? '#eff6ff' : isError ? '#fffbeb' : '#fff1f2';
+      const isRecovered = e.type === 'recovered';
+      const icon = isTest ? '🔔' : isNew ? '📅' : isError ? '⚠️' : isRecovered ? '✅' : '❌';
+      const color = isTest ? '#6b7280' : isNew ? '#1e3a8a' : isError ? '#92400e' : isRecovered ? '#166534' : '#991b1b';
+      const bgColor = e.read ? 'var(--surface2)' : isTest ? '#f9fafb' : isNew ? '#eff6ff' : isError ? '#fffbeb' : isRecovered ? '#f0fdf4' : '#fff1f2';
       const body = isTest
         ? '푸시 알림 테스트'
         : isNew
           ? `${e.platform} ${e.cin}~${e.cout}`
           : isError
             ? `${e.platform} iCal 연결 오류 (15분 이상 실패)`
-            : `${e.platform}${e.cin ? ' ' + e.cin + '~' + e.cout : ''} 취소`;
+            : isRecovered
+              ? `${e.platform} iCal 연결이 복구됐어요`
+              : `${e.platform}${e.cin ? ' ' + e.cin + '~' + e.cout : ''} 취소`;
       return `<div id="ev_${e.id}" style="background:${bgColor};border-radius:12px;padding:12px 14px;border:1px solid var(--border2);opacity:${e.read?'0.6':'1'}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
           <div>
