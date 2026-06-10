@@ -1667,6 +1667,10 @@ function cleanClass(n) {
 function fmtWon(n) {
   return '₩' + n.toLocaleString('ko-KR');
 }
+function fmtMan(n) {
+  const v = n / 10000;
+  return (v % 1 === 0 ? v : parseFloat(v.toFixed(1))) + '만';
+}
 
 function renderCleaningStats() {
   const grid = document.getElementById('statsGrid');
@@ -1708,7 +1712,7 @@ function renderCleaningStats() {
       const tip   = `단기 ${short}회 · 장기 ${long}회 · ${fmtWon(cost)}`;
       return `<td class="stats-cell-td"><div class="stats-cell clean-cell ${cls}" data-tip="${tip}">
         <span class="stats-clean-count">${total}회</span>
-        <span class="stats-clean-cost">${total > 0 ? '₩'+Math.round(cost/1000)+'k' : ''}</span>
+        <span class="stats-clean-cost">${total > 0 ? fmtMan(cost) : ''}</span>
       </div></td>`;
     }).join('');
     return `<tr><td class="stats-room-td"><span class="room-dot-s" style="background:${r.color}"></span>${r.name}</td>${cells}</tr>`;
@@ -1726,7 +1730,7 @@ function renderCleaningStats() {
     const cls   = cleanClass(Math.min(total, 6));
     return `<td class="stats-total-cell-td"><div class="stats-cell clean-cell ${cls}" data-tip="${total}회 · ${fmtWon(cost)}">
       <span class="stats-clean-count">${total}회</span>
-      <span class="stats-clean-cost">₩${Math.round(cost/1000)}k</span>
+      <span class="stats-clean-cost">${fmtMan(cost)}</span>
     </div></td>`;
   }).join('');
 
