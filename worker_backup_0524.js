@@ -229,7 +229,7 @@ async function syncAllRooms(env, withPush = false) {
       if (withPush) {
         const bookingMap = {};
         result.forEach(b => {
-          const uid = b.summary + b.cinY + b.cinM + b.cinD;
+          const uid = `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`;
           const cin  = `${b.cinY}/${String(b.cinM+1).padStart(2,'0')}/${String(b.cinD).padStart(2,'0')}`;
           const cout = `${b.coutY}/${String(b.coutM+1).padStart(2,'0')}/${String(b.coutD).padStart(2,'0')}`;
           bookingMap[uid] = { ...b, cin, cout };
@@ -309,7 +309,7 @@ function parseIcal(text, platform) {
     if (!dtstart || !dtend) continue;
     const pd = d => ({ y: +d.slice(0,4), m: +d.slice(4,6)-1, d: +d.slice(6,8) });
     const cin = pd(dtstart), cout = pd(dtend);
-   if (platform !== 'booking' && summary.toLowerCase().includes('not available')) continue;
+    if (platform !== 'booking' && (summary.toLowerCase().includes('not available') || summary.toLowerCase() === 'closed' || summary === '')) continue;
     // 에어비앤비: Reserved인데 DESCRIPTION에 예약 URL 없으면 블락으로 판단
     if (platform === 'airbnb' && summary === 'Reserved') {
       const desc = (block.match(/DESCRIPTION:(.+)/) || [])[1] || '';
