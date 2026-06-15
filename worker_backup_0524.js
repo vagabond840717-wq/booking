@@ -309,7 +309,7 @@ function parseIcal(text, platform) {
     if (!dtstart || !dtend) continue;
     const pd = d => ({ y: +d.slice(0,4), m: +d.slice(4,6)-1, d: +d.slice(6,8) });
     const cin = pd(dtstart), cout = pd(dtend);
-    if (platform !== 'booking' && (summary.toLowerCase().includes('not available') || summary.toLowerCase() === 'closed' || summary === '')) continue;
+    if (platform !== 'booking' && summary.toLowerCase().includes('not available')) continue;
     // 에어비앤비: Reserved인데 DESCRIPTION에 예약 URL 없으면 블락으로 판단
     if (platform === 'airbnb' && summary === 'Reserved') {
       const desc = (block.match(/DESCRIPTION:(.+)/) || [])[1] || '';
