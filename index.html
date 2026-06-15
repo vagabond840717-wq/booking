@@ -901,6 +901,24 @@ function cellTypeFor(bookings,d,y,m){
   return 'empty';
 }
 
+function cellTypeForBlock(bookings,d,y,m){
+  let occupied=false,isOut=false,isIn=false;
+  const cur=new Date(y,m,d);
+  for(const bk of bookings){
+    const cin=new Date(bk.cinY,bk.cinM,bk.cinD);
+    const cout=new Date(bk.coutY,bk.coutM,bk.coutD);
+    const coutNext=new Date(bk.coutY,bk.coutM,bk.coutD+1);
+    if(cur.getTime()===coutNext.getTime()) isOut=true;
+    if(cur.getTime()===cin.getTime()) isIn=true;
+    if(cur>=cin&&cur<=cout) occupied=true;
+  }
+  if(isOut&&isIn) return 'both';
+  if(isOut) return 'checkout';
+  if(isIn) return 'checkin';
+  if(occupied) return 'occupied';
+  return 'empty';
+}
+
 function isOverbooking(room,d,y,m){
   const cur=new Date(y,m,d);
   const all=[...(room.bookings||[]),...(room.bkBookings||[]),...(room.trBookings||[]),...(room.lvBookings||[])];
@@ -914,7 +932,7 @@ function isOverbooking(room,d,y,m){
 
 function cellClsAndLbl(room,d,y,m){
   const ab=cellTypeFor(room.bookings||[],d,y,m);
-  const abBlk=cellTypeFor(room.abBlocks||[],d,y,m);
+  const abBlk=cellTypeForBlock(room.abBlocks||[],d,y,m);
   const bk=cellTypeFor(room.bkBookings||[],d,y,m);
   const tr=cellTypeFor(room.trBookings||[],d,y,m);
   const lv=cellTypeFor(room.lvBookings||[],d,y,m);
