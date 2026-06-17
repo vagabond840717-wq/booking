@@ -859,6 +859,7 @@ async function triggerSync() {
   document.getElementById('syncTime').textContent='동기화 중...';
   try{await fetch(`${PROXY}/sync`,{method:'POST'});}catch(e){}
   await loadBookingsFromKV();
+  mergeArchiveIntoRooms();
   icon.classList.remove('spin');
   document.getElementById('syncTime').textContent=nowStr()+' 기준';
   render();
@@ -1382,10 +1383,10 @@ async function openDetail(ri,y,m,d){
   document.getElementById('detailTitle').innerHTML=badge+dateStr(y,m,d);
   let obHtml='';
   if(isOverbooking(r,d,y,m)) obHtml=`<div class="ob-warning">⚠️ 오버부킹 가능성! ${allBks.length}개 플랫폼 예약 중복</div>`;
+  const manualBl=manualBlocks.find(b=>{if(b.roomName!==r.name)return false;const cur=new Date(y,m,d);return cur>=new Date(b.startY,b.startM,b.startD)&&cur<=new Date(b.endY,b.endM,b.endD);});
   let bkHtml=`<div class="d-section-title">예약 정보</div>`;
   if(!allBks.length){
-    const bl=manualBlocks.find(b=>{if(b.roomName!==r.name)return false;const cur=new Date(y,m,d);return cur>=new Date(b.startY,b.startM,b.startD)&&cur<=new Date(b.endY,b.endM,b.endD);});
-    if(bl) bkHtml+=`<div class="bk-info-box" style="border-color:rgba(55,65,81,0.3);"><div class="bk-info-row"><span class="bk-info-label">유형</span><span class="bk-info-value" style="color:var(--bl-color);font-weight:600;">🔒 수동 블락</span></div><div class="bk-info-row"><span class="bk-info-label">기간</span><span class="bk-info-value">${dateStr(bl.startY,bl.startM,bl.startD)} ~ ${dateStr(bl.endY,bl.endM,bl.endD)}</span></div>${bl.reason?`<div class="bk-info-row"><span class="bk-info-label">사유</span><span class="bk-info-value">${bl.reason}</span></div>`:''}</div>`;
+    if(manualBl) bkHtml+=`<div class="bk-info-box" style="border-color:rgba(55,65,81,0.3);"><div class="bk-info-row"><span class="bk-info-label">유형</span><span class="bk-info-value" style="color:var(--bl-color);font-weight:600;">🔒 수동 블락</span></div><div class="bk-info-row"><span class="bk-info-label">기간</span><span class="bk-info-value">${dateStr(manualBl.startY,manualBl.startM,manualBl.startD)} ~ ${dateStr(manualBl.endY,manualBl.endM,manualBl.endD)}</span></div>${manualBl.reason?`<div class="bk-info-row"><span class="bk-info-label">사유</span><span class="bk-info-value">${manualBl.reason}</span></div>`:''}</div>`;
     else bkHtml+=`<div class="no-bk">예약 없음</div>`;
   } else {
     for(const bk of allBks){
@@ -1406,7 +1407,11 @@ async function openDetail(ri,y,m,d){
     }
   }
   const firstBk=allBks[0];
-  const pwKey=firstBk?`${r.name}|${firstBk.cinY}${String(firstBk.cinM+1).padStart(2,'0')}${String(firstBk.cinD).padStart(2,'0')}`:`${r.name}|${dateStr(y,m,d)}`;
+  const pwKey=firstBk
+    ?`${r.name}|${firstBk.cinY}${String(firstBk.cinM+1).padStart(2,'0')}${String(firstBk.cinD).padStart(2,'0')}`
+    :manualBl
+      ?`${r.name}|${manualBl.startY}${String(manualBl.startM+1).padStart(2,'0')}${String(manualBl.startD).padStart(2,'0')}`
+      :`${r.name}|${dateStr(y,m,d)}`;
   const extra=await loadExtra(pwKey);
   const curPw=extra.passwords&&extra.passwords.length?extra.passwords[0]:null;
   let pwHtml=`<div class="d-section-title" style="margin-top:4px;">🔑 도어락 비밀번호</div>
@@ -1626,6 +1631,24 @@ async function loadArchive() {
     if (!resp.ok) return;
     archiveData = await resp.json();
   } catch(e) {}
+}
+
+function mergeArchiveIntoRooms() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const keyMap = { ab: 'bookings', bk: 'bkBookings', tr: 'trBookings', lv: 'lvBookings' };
+  for (const room of rooms) {
+    const rd = archiveData[room.name];
+    if (!rd) continue;
+    for (const [src, dest] of Object.entries(keyMap)) {
+      const past = (rd[src] || []).filter(b => new Date(b.coutY, b.coutM, b.coutD) < now);
+      if (!past.length) continue;
+      const existing = new Set((room[dest] || []).map(b => `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`));
+      for (const b of past) {
+        const uid = `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`;
+        if (!existing.has(uid)) { room[dest].push(b); existing.add(uid); }
+      }
+    }
+  }
 }
 
 function calcOccupancy(roomName, platform, year, month) {
@@ -2008,6 +2031,8 @@ async function init(){
   await loadRooms();
   render();
   await Promise.all([triggerSync(), loadArchive()]);
+  mergeArchiveIntoRooms();
+  render();
   // 헤더 높이 동적 계산
   const hdr=document.querySelector('.app-header');
   if(hdr){
