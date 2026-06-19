@@ -225,6 +225,14 @@ async function syncAllRooms(env, withPush = false) {
     for (const p of platforms) {
       if (!p.url) continue;
       const result = await fetchAndParseIcal(p.url, p.type);
+      if (result === null) {
+        bookings[p.key] = [];
+        if (withPush) {
+          const prevData = prev[room.name + '_' + p.key];
+          if (prevData !== undefined) curr[room.name + '_' + p.key] = prevData;
+        }
+        continue;
+      }
       bookings[p.key] = result;
       if (withPush) {
         const bookingMap = {};
@@ -293,9 +301,9 @@ async function sendPushToAll(env, data) {
 async function fetchAndParseIcal(url, platform) {
   try {
     const resp = await fetch(url.replace(/^webcal:\/\//i, 'https://'), { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!resp.ok) return [];
+    if (!resp.ok) return null;
     return parseIcal(await resp.text(), platform);
-  } catch { return []; }
+  } catch { return null; }
 }
 
 function parseIcal(text, platform) {
