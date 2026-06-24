@@ -206,16 +206,30 @@ function bytesToB64(arr) {
   return btoa(String.fromCharCode(...arr)).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
 }
 
+// ── 예약 누적 병합 (체크인 날짜 기준 중복 제거, fresh 우선) ──
+function mergeBookings(existing, fresh) {
+  const map = {};
+  for (const bk of existing) map[`${bk.cinY}-${bk.cinM}-${bk.cinD}`] = bk;
+  for (const bk of fresh)    map[`${bk.cinY}-${bk.cinM}-${bk.cinD}`] = bk;
+  const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 1); cutoff.setHours(0,0,0,0);
+  return Object.values(map).filter(bk => new Date(bk.coutY, bk.coutM, bk.coutD) >= cutoff);
+}
+
 // ── 동기화 ──
 async function syncAllRooms(env, withPush = false) {
   const roomsRaw = await env.HANA_KV.get('rooms');
   if (!roomsRaw) return { synced: 0, time: new Date().toISOString() };
   const rooms = JSON.parse(roomsRaw);
+  // 기존 저장 데이터 로드 (누적 보존용)
+  const existingRaw = await env.HANA_KV.get('synced_bookings');
+  const existing = existingRaw ? JSON.parse(existingRaw) : {};
   const synced_bookings = {};
   const prev = withPush ? JSON.parse(await env.PUSH_KV.get('last_booking_uids') || '{}') : {};
   const curr = {};
+  const today = new Date(); today.setHours(0,0,0,0);
   await Promise.all(rooms.map(async (room) => {
     const bookings = { ab: [], bk: [], tr: [], lv: [] };
+    const existingRoom = existing[room.name] || {};
     const platforms = [
       { key: 'ab', url: room.url,   label: 'Airbnb',      type: 'airbnb'  },
       { key: 'bk', url: room.bkUrl, label: 'Booking.com', type: 'booking' },
@@ -223,12 +237,12 @@ async function syncAllRooms(env, withPush = false) {
       { key: 'lv', url: room.lvUrl, label: '리브애니웨어', type: 'lv'      },
     ];
     for (const p of platforms) {
-      if (!p.url) continue;
-      const result = await fetchAndParseIcal(p.url, p.type);
-      bookings[p.key] = result;
-      if (withPush) {
+      const fresh = p.url ? await fetchAndParseIcal(p.url, p.type) : [];
+      // iCal에서 사라진 과거 예약도 유지되도록 기존 데이터와 합침
+      bookings[p.key] = mergeBookings(existingRoom[p.key] || [], fresh);
+      if (withPush && p.url) {
         const bookingMap = {};
-        result.forEach(b => {
+        fresh.forEach(b => {
           const uid = b.summary + b.cinY + b.cinM + b.cinD;
           const cin  = `${b.cinY}/${String(b.cinM+1).padStart(2,'0')}/${String(b.cinD).padStart(2,'0')}`;
           const cout = `${b.coutY}/${String(b.coutM+1).padStart(2,'0')}/${String(b.coutD).padStart(2,'0')}`;
@@ -240,7 +254,13 @@ async function syncAllRooms(env, withPush = false) {
         const prevMap = Array.isArray(prevData) ? {} : prevData;
         curr[room.name + '_' + p.key] = bookingMap;
         const newOnes = uids.filter(u => !prevUids.includes(u));
-        const cancelled = prevUids.filter(u => !uids.includes(u));
+        // 취소 감지는 미래/당일 예약에 한정 (과거 예약이 iCal에서 사라지는 건 정상)
+        const cancelled = prevUids.filter(u => {
+          if (uids.includes(u)) return false;
+          const b = prevMap[u] || {};
+          if (!b.coutY) return true;
+          return new Date(b.coutY, b.coutM, b.coutD) >= today;
+        });
         for (const uid of newOnes) {
           const b = bookingMap[uid];
           const msg = { title: `📅 ${room.name} 새 예약`, body: `${p.label} ${b.cin}~${b.cout}`, room: room.name };
@@ -317,7 +337,7 @@ function parseIcal(text, platform) {
     }
     const today = new Date(); today.setHours(0,0,0,0);
     const coutDate = new Date(cout.y, cout.m, cout.d);
-    const cutoff = new Date(today); cutoff.setMonth(cutoff.getMonth() - 3);
+    const cutoff = new Date(today); cutoff.setFullYear(cutoff.getFullYear() - 1);
     if (coutDate < cutoff) continue;
     bookings.push({ cinY: cin.y, cinM: cin.m, cinD: cin.d, coutY: cout.y, coutM: cout.m, coutD: cout.d, platform, summary });
   }
