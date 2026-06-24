@@ -238,8 +238,8 @@ async function syncAllRooms(env, withPush = false) {
       if (withPush) {
         const bookingMap = {};
         result.forEach(b => {
-          // summary 제외: 날짜만으로 UID 생성 (summary는 플랫폼이 업데이트해서 바뀔 수 있음)
-          const uid = `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`;
+          // iCal UID(예약 번호) 우선 사용, 없으면 날짜 조합으로 대체
+          const uid = b.icalUid || `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`;
           const cin  = `${b.cinY}/${String(b.cinM+1).padStart(2,'0')}/${String(b.cinD).padStart(2,'0')}`;
           const cout = `${b.coutY}/${String(b.coutM+1).padStart(2,'0')}/${String(b.coutD).padStart(2,'0')}`;
           bookingMap[uid] = { ...b, cin, cout };
@@ -316,6 +316,7 @@ function parseIcal(text, platform) {
     const dtstart = (block.match(/DTSTART(?:;[^:]*)?:(\d{8})/) || [])[1];
     const dtend   = (block.match(/DTEND(?:;[^:]*)?:(\d{8})/)   || [])[1];
     const summary = (block.match(/SUMMARY:(.+)/)                || [])[1]?.trim() || '';
+    const icalUid = (block.match(/^UID:(.+)/m)                  || [])[1]?.trim() || '';
     if (!dtstart || !dtend) continue;
     const pd = d => ({ y: +d.slice(0,4), m: +d.slice(4,6)-1, d: +d.slice(6,8) });
     const cin = pd(dtstart), cout = pd(dtend);
@@ -329,7 +330,7 @@ function parseIcal(text, platform) {
     const today = new Date(); today.setHours(0,0,0,0);
     const coutDate = new Date(cout.y, cout.m, cout.d);
     if (coutDate < today) continue;
-    bookings.push({ cinY: cin.y, cinM: cin.m, cinD: cin.d, coutY: cout.y, coutM: cout.m, coutD: cout.d, platform, summary });
+    bookings.push({ cinY: cin.y, cinM: cin.m, cinD: cin.d, coutY: cout.y, coutM: cout.m, coutD: cout.d, platform, summary, icalUid });
   }
   return bookings;
 }
