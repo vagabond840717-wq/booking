@@ -225,11 +225,21 @@ async function syncAllRooms(env, withPush = false) {
     for (const p of platforms) {
       if (!p.url) continue;
       const result = await fetchAndParseIcal(p.url, p.type);
+      // null = 연결 실패 → 이전 데이터 유지, 알림 비교 건너뜀
+      if (result === null) {
+        bookings[p.key] = [];
+        if (withPush) {
+          const prevData = prev[room.name + '_' + p.key] || {};
+          curr[room.name + '_' + p.key] = Array.isArray(prevData) ? {} : prevData; // 이전 상태 그대로 보존
+        }
+        continue;
+      }
       bookings[p.key] = result;
       if (withPush) {
         const bookingMap = {};
         result.forEach(b => {
-          const uid = b.summary + b.cinY + b.cinM + b.cinD;
+          // summary 제외: 날짜만으로 UID 생성 (summary는 플랫폼이 업데이트해서 바뀔 수 있음)
+          const uid = `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`;
           const cin  = `${b.cinY}/${String(b.cinM+1).padStart(2,'0')}/${String(b.cinD).padStart(2,'0')}`;
           const cout = `${b.coutY}/${String(b.coutM+1).padStart(2,'0')}/${String(b.coutD).padStart(2,'0')}`;
           bookingMap[uid] = { ...b, cin, cout };
@@ -293,9 +303,9 @@ async function sendPushToAll(env, data) {
 async function fetchAndParseIcal(url, platform) {
   try {
     const resp = await fetch(url.replace(/^webcal:\/\//i, 'https://'), { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (!resp.ok) return [];
+    if (!resp.ok) return null;  // null = 연결 실패 (빈 예약과 구분)
     return parseIcal(await resp.text(), platform);
-  } catch { return []; }
+  } catch { return null; }
 }
 
 function parseIcal(text, platform) {
