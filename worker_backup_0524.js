@@ -315,10 +315,10 @@ function parseIcal(text, platform) {
       const desc = (block.match(/DESCRIPTION:(.+)/) || [])[1] || '';
       if (!desc.includes('airbnb.com/hosting/reservations')) continue;
     }
-    // 체크아웃이 오늘 이전이면 제외
     const today = new Date(); today.setHours(0,0,0,0);
     const coutDate = new Date(cout.y, cout.m, cout.d);
-    if (coutDate < today) continue;
+    const cutoff = new Date(today); cutoff.setMonth(cutoff.getMonth() - 3);
+    if (coutDate < cutoff) continue;
     bookings.push({ cinY: cin.y, cinM: cin.m, cinD: cin.d, coutY: cout.y, coutM: cout.m, coutD: cout.d, platform, summary });
   }
   return bookings;
