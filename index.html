@@ -1095,14 +1095,14 @@ function cellClsAndLbl(room,d,y,m){
   const abE=ab==='empty',abBlkE=abBlk==='empty',bkE=bk==='empty',trE=tr==='empty',lvE=lv==='empty',blE=bl==='empty';
   if(abE&&abBlkE&&bkE&&trE&&lvE&&blE) return{cls:'c-empty',lbl:''};
   function io(ct){if(ct==='checkout')return '아웃';if(ct==='checkin')return '인';if(ct==='both')return '↕';return '';}
-  function bothLbl(){return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">아웃</span><span style="font-size:7px;line-height:1;">인</span></span>`;}
+  function bothLbl(icon){const ic=icon?`<span style="font-size:8px;line-height:1;">${icon}</span>`:'';return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">아웃</span>${ic}<span style="font-size:7px;line-height:1;">인</span></span>`;}
 
   if(!blE&&abE&&abBlkE&&bkE&&trE&&lvE) return{cls:'c-bl-block',lbl:'<span class="cell-icon">🔒</span>'};
   if(!abBlkE&&abE&&bkE&&trE&&lvE&&blE){if(abBlk==='checkout')return{cls:'c-checkout',lbl:`<span class="cell-icon">✈</span><span class="cell-txt">아웃</span>`};return{cls:'c-ab-block',lbl:'<span class="cell-icon">🚫</span>'};}
-  if(bkE&&trE&&lvE&&blE&&abBlkE){const t=io(ab);if(!t)return{cls:'c-occupied',lbl:''};if(ab==='both')return{cls:'c-both',lbl:bothLbl()};return{cls:'c-'+ab,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&trE&&lvE&&blE&&abBlkE){const t=io(bk);if(!t)return{cls:'c-bk-occupied',lbl:''};if(bk==='both')return{cls:'c-bk-both',lbl:bothLbl()};return{cls:'c-bk-'+bk,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&bkE&&lvE&&blE&&abBlkE){const t=io(tr);if(!t)return{cls:'c-tr-occupied',lbl:''};if(tr==='both')return{cls:'c-tr-both',lbl:bothLbl()};return{cls:'c-tr-'+tr,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${t}</span>`};}
-  if(abE&&bkE&&trE&&blE&&abBlkE){const t=io(lv);if(!t)return{cls:'c-lv-occupied',lbl:''};if(lv==='both')return{cls:'c-lv-both',lbl:bothLbl()};return{cls:'c-lv-'+lv,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${t}</span>`};}
+  if(bkE&&trE&&lvE&&blE&&abBlkE){const t=io(ab);if(!t)return{cls:'c-occupied',lbl:''};if(ab==='both')return{cls:'c-both',lbl:bothLbl('✈')};return{cls:'c-'+ab,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&trE&&lvE&&blE&&abBlkE){const t=io(bk);if(!t)return{cls:'c-bk-occupied',lbl:''};if(bk==='both')return{cls:'c-bk-both',lbl:bothLbl('🏨')};return{cls:'c-bk-'+bk,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&bkE&&lvE&&blE&&abBlkE){const t=io(tr);if(!t)return{cls:'c-tr-occupied',lbl:''};if(tr==='both')return{cls:'c-tr-both',lbl:bothLbl('🌐')};return{cls:'c-tr-'+tr,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${t}</span>`};}
+  if(abE&&bkE&&trE&&blE&&abBlkE){const t=io(lv);if(!t)return{cls:'c-lv-occupied',lbl:''};if(lv==='both')return{cls:'c-lv-both',lbl:bothLbl('🏡')};return{cls:'c-lv-'+lv,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${t}</span>`};}
   // 플랫폼 체크아웃/인 + 에어비앤비 블락 조합 (반반 분할 표시)
   if(!abBlkE&&blE){
     // 블락 종료날 + 플랫폼 체크인 → 빨강+체크인색 반반 (일반 체크아웃+체크인과 동일 방식)
