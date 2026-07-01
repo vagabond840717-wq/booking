@@ -302,6 +302,8 @@ thead { position: sticky; top: 0; z-index: 10; }
 .block-item-reason { font-size: 11px; color: var(--text3); margin-top: 2px; }
 .block-del { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .block-del:active { background: rgba(220,38,38,0.1); color: #dc2626; }
+.block-edit { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); background: none; color: var(--text3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.block-edit:active { background: rgba(59,130,246,0.1); color: #3b82f6; }
 
 .memo-input-row { display: flex; gap: 8px; align-items: flex-end; }
 .memo-textarea { flex: 1; padding: 10px 12px; font-size: 13px; min-height: 64px; max-height: 120px; background: var(--bg); border: 1px solid var(--border2); border-radius: var(--r); color: var(--text); resize: vertical; font-family: 'DM Sans', sans-serif; outline: none; line-height: 1.5; }
@@ -619,6 +621,7 @@ thead { position: sticky; top: 0; z-index: 10; }
           </div>
           <input class="block-reason-input" id="blockReason" placeholder="사유 (청소/점검/개인사용 등)">
           <button class="block-add-btn" id="blockAddBtn">🔒 블락 추가</button>
+          <button class="block-add-btn" id="blockCancelEditBtn" style="display:none;background:var(--surface2);color:var(--text2);margin-top:6px;">취소</button>
         </div>
       </div>
       <div class="sheet-section">
@@ -708,6 +711,7 @@ const ICAL_BASE = 'https://ical-proxy.vagabond1984.workers.dev/ical';
 let curY, curM, viewMode = 'multi';
 let rooms = [];
 let manualBlocks = [];
+let editingBlockIdx = null;
 let trSplits = [];          // Trip.com 합쳐진 예약 수동 분할 정의
 let splitEditState = null;  // 분할 편집기 임시 상태
 let dragSrcIdx = null;
@@ -1064,7 +1068,7 @@ function cellTypeForBlock(bookings,d,y,m){
     const coutNext=new Date(bk.coutY,bk.coutM,bk.coutD+1);
     if(cur.getTime()===coutNext.getTime()) isOut=true;
     if(cur.getTime()===cin.getTime()) isIn=true;
-    if(cur>=cin&&cur<cout) occupied=true;
+    if(cur>=cin&&cur<=cout) occupied=true;
   }
   if(isOut&&isIn) return 'both';
   if(isOut) return 'checkout';
@@ -1670,10 +1674,18 @@ function renderBlockList(){
           <div class="block-item-dates">🔒 ${bl.roomName} · ${dateStr(bl.startY,bl.startM,bl.startD)} ~ ${dateStr(bl.endY,bl.endM,bl.endD)}</div>
           ${bl.reason?`<div class="block-item-reason">${bl.reason}</div>`:''}
         </div>
+        <button class="block-edit" data-idx="${i}">✎</button>
         <button class="block-del" data-idx="${i}">✕</button>
       </div>`).join('');
+    list.querySelectorAll('.block-edit').forEach(btn=>{
+      btn.onclick=()=>startEditBlock(+btn.dataset.idx);
+    });
     list.querySelectorAll('.block-del').forEach(btn=>{
-      btn.onclick=()=>{manualBlocks.splice(+btn.dataset.idx,1);saveBlocks();render();renderBlockList();showToast('블락 해제됨');};
+      btn.onclick=()=>{
+        const idx=+btn.dataset.idx;
+        if(editingBlockIdx===idx) cancelEditBlock();
+        manualBlocks.splice(idx,1);saveBlocks();render();renderBlockList();showToast('블락 해제됨');
+      };
     });
   }
 }
@@ -2157,8 +2169,8 @@ document.getElementById('dateSearchInput').addEventListener('keydown',e=>{
 });
 document.getElementById('closeSettings').onclick=()=>document.getElementById('settingsPanel').classList.remove('open');
 document.getElementById('settingsPanel').addEventListener('click',e=>{if(e.target===document.getElementById('settingsPanel'))document.getElementById('settingsPanel').classList.remove('open');});
-document.getElementById('blockBtn').onclick=()=>{document.getElementById('blockPanel').classList.add('open');renderBlockPanel();};
-document.getElementById('closeBlock').onclick=()=>document.getElementById('blockPanel').classList.remove('open');
+document.getElementById('blockBtn').onclick=()=>{cancelEditBlock();document.getElementById('blockPanel').classList.add('open');renderBlockPanel();};
+document.getElementById('closeBlock').onclick=()=>{cancelEditBlock();document.getElementById('blockPanel').classList.remove('open');};
 document.getElementById('blockPanel').addEventListener('click',e=>{if(e.target===document.getElementById('blockPanel'))document.getElementById('blockPanel').classList.remove('open');});
 document.getElementById('closeDetail').onclick=()=>document.getElementById('detailPanel').classList.remove('open');
 document.getElementById('detailPanel').addEventListener('click',e=>{if(e.target===document.getElementById('detailPanel'))document.getElementById('detailPanel').classList.remove('open');});
@@ -2173,6 +2185,27 @@ document.getElementById('addRoomBtn').onclick=()=>{
   render();renderRoomList();showToast('호실 추가됐어요 ✓');
 };
 
+function startEditBlock(idx){
+  const bl=manualBlocks[idx];
+  if(!bl) return;
+  editingBlockIdx=idx;
+  document.getElementById('blockRoom').value=bl.roomName;
+  document.getElementById('blockStart').value=`${bl.startY}-${String(bl.startM+1).padStart(2,'0')}-${String(bl.startD).padStart(2,'0')}`;
+  document.getElementById('blockEnd').value=`${bl.endY}-${String(bl.endM+1).padStart(2,'0')}-${String(bl.endD).padStart(2,'0')}`;
+  document.getElementById('blockReason').value=bl.reason||'';
+  document.getElementById('blockAddBtn').textContent='🔒 블락 수정 완료';
+  document.getElementById('blockCancelEditBtn').style.display='block';
+}
+function cancelEditBlock(){
+  editingBlockIdx=null;
+  document.getElementById('blockRoom').value='';
+  document.getElementById('blockStart').value='';
+  document.getElementById('blockEnd').value='';
+  document.getElementById('blockReason').value='';
+  document.getElementById('blockAddBtn').textContent='🔒 블락 추가';
+  document.getElementById('blockCancelEditBtn').style.display='none';
+}
+document.getElementById('blockCancelEditBtn').onclick=cancelEditBlock;
 document.getElementById('blockAddBtn').onclick=()=>{
   const roomName=document.getElementById('blockRoom').value;
   const startStr=document.getElementById('blockStart').value;
@@ -2182,6 +2215,12 @@ document.getElementById('blockAddBtn').onclick=()=>{
   const[sy,sm,sd]=startStr.split('-').map(Number);
   const[ey,em,ed]=endStr.split('-').map(Number);
   if(new Date(sy,sm-1,sd)>new Date(ey,em-1,ed)){showToast('종료일이 시작일보다 앞서요');return;}
+  if(editingBlockIdx!==null){
+    manualBlocks[editingBlockIdx]={roomName,startY:sy,startM:sm-1,startD:sd,endY:ey,endM:em-1,endD:ed,reason};
+    cancelEditBlock();
+    saveBlocks();render();renderBlockList();showToast('블락 수정됐어요 🔒');
+    return;
+  }
   manualBlocks.push({roomName,startY:sy,startM:sm-1,startD:sd,endY:ey,endM:em-1,endD:ed,reason});
   saveBlocks();render();renderBlockList();showToast('블락 추가됐어요 🔒');
 };
