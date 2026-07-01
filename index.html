@@ -528,7 +528,6 @@ thead { position: sticky; top: 0; z-index: 10; }
       <button class="icon-btn" id="todayBtn">●</button>
       <button class="icon-btn" id="statsBtn" title="점유율 통계">📊</button>
       <button class="icon-btn" id="notifyBtn" title="알림 내역" onclick="openNotifyPanel()">🔔</button>
-      <button class="icon-btn" id="blockBtn">🔒</button>
       <button class="icon-btn" id="settingsBtn">☰</button>
     </div>
   </div>
@@ -604,33 +603,6 @@ thead { position: sticky; top: 0; z-index: 10; }
   </div>
 </div>
 
-<div class="panel-overlay" id="blockPanel">
-  <div class="panel-sheet">
-    <div class="sheet-header">
-      <span class="sheet-title">🔒 수동 블락 관리</span>
-      <button class="sheet-close" id="closeBlock">✕</button>
-    </div>
-    <div class="sheet-body">
-      <div class="sheet-section">
-        <div class="sheet-section-title">블락 추가</div>
-        <div class="block-form">
-          <div class="block-form-row">
-            <select class="block-input" id="blockRoom"><option value="">호실 선택</option></select>
-            <input type="date" class="block-input" id="blockStart">
-            <input type="date" class="block-input" id="blockEnd">
-          </div>
-          <input class="block-reason-input" id="blockReason" placeholder="사유 (청소/점검/개인사용 등)">
-          <button class="block-add-btn" id="blockAddBtn">🔒 블락 추가</button>
-          <button class="block-add-btn" id="blockCancelEditBtn" style="display:none;background:var(--surface2);color:var(--text2);margin-top:6px;">취소</button>
-        </div>
-      </div>
-      <div class="sheet-section">
-        <div class="sheet-section-title">등록된 블락 (<span id="blockCount">0</span>)</div>
-        <div id="blockList"></div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <div class="panel-overlay" id="settingsPanel">
   <div class="panel-sheet">
@@ -711,7 +683,6 @@ const ICAL_BASE = 'https://ical-proxy.vagabond1984.workers.dev/ical';
 let curY, curM, viewMode = 'multi';
 let rooms = [];
 let manualBlocks = [];
-let editingBlockIdx = null;
 let trSplits = [];          // Trip.com 합쳐진 예약 수동 분할 정의
 let splitEditState = null;  // 분할 편집기 임시 상태
 let dragSrcIdx = null;
@@ -1543,8 +1514,7 @@ async function openDetail(ri,y,m,d){
   const manualBl=manualBlocks.find(b=>{if(b.roomName!==r.name)return false;const cur=new Date(y,m,d);return cur>=new Date(b.startY,b.startM,b.startD)&&cur<=new Date(b.endY,b.endM,b.endD);});
   let bkHtml=`<div class="d-section-title">예약 정보</div>`;
   if(!allBks.length){
-    if(manualBl) bkHtml+=`<div class="bk-info-box" style="border-color:rgba(55,65,81,0.3);"><div class="bk-info-row"><span class="bk-info-label">유형</span><span class="bk-info-value" style="color:var(--bl-color);font-weight:600;">🔒 수동 블락</span></div><div class="bk-info-row"><span class="bk-info-label">기간</span><span class="bk-info-value">${dateStr(manualBl.startY,manualBl.startM,manualBl.startD)} ~ ${dateStr(manualBl.endY,manualBl.endM,manualBl.endD)}</span></div>${manualBl.reason?`<div class="bk-info-row"><span class="bk-info-label">사유</span><span class="bk-info-value">${manualBl.reason}</span></div>`:''}</div>`;
-    else bkHtml+=`<div class="no-bk">예약 없음</div>`;
+    bkHtml+=`<div class="no-bk">예약 없음</div>`;
   } else {
     for(const bk of allBks){
       const nights=Math.round((new Date(bk.coutY,bk.coutM,bk.coutD)-new Date(bk.cinY,bk.cinM,bk.cinD))/86400000);
@@ -1561,6 +1531,33 @@ async function openDetail(ri,y,m,d){
         ${isIn?'<div style="font-size:11px;color:var(--ab-in);font-weight:600;">← 오늘 체크인</div>':''}
       </div>`;
     }
+  }
+  // ── 셀 클릭 블락 추가/수정/해제 ──
+  const dstr=n=>String(n).padStart(2,'0');
+  let blockHtml='';
+  if(manualBl){
+    blockHtml=`<div class="d-section-title" style="margin-top:4px;">🔒 수동 블락</div>
+    <div class="bk-info-box" style="border-color:rgba(55,65,81,0.3);">
+      <div class="block-form-row" style="margin-bottom:6px;">
+        <input type="date" class="block-input" id="cellBlockStart" value="${manualBl.startY}-${dstr(manualBl.startM+1)}-${dstr(manualBl.startD)}">
+        <input type="date" class="block-input" id="cellBlockEnd" value="${manualBl.endY}-${dstr(manualBl.endM+1)}-${dstr(manualBl.endD)}">
+      </div>
+      <input class="block-reason-input" id="cellBlockReason" placeholder="사유 (얼리체크인/레이트체크아웃 등)" value="${manualBl.reason||''}" style="margin-bottom:6px;">
+      <div style="display:flex;gap:6px;">
+        <button class="block-add-btn" id="cellBlockSaveBtn" style="flex:1;">저장</button>
+        <button class="block-add-btn" id="cellBlockDelBtn" style="flex:1;background:var(--surface2);color:#e5503a;">블락 해제</button>
+      </div>
+    </div>`;
+  } else if(!allBks.length){
+    blockHtml=`<div class="d-section-title" style="margin-top:4px;">🔒 수동 블락</div>
+    <div class="bk-info-box" style="border-color:rgba(55,65,81,0.3);">
+      <div class="block-form-row" style="margin-bottom:6px;">
+        <input type="date" class="block-input" id="cellBlockStart" value="${y}-${dstr(m+1)}-${dstr(d)}">
+        <input type="date" class="block-input" id="cellBlockEnd" value="${y}-${dstr(m+1)}-${dstr(d)}">
+      </div>
+      <input class="block-reason-input" id="cellBlockReason" placeholder="사유 (얼리체크인/레이트체크아웃 등)" style="margin-bottom:6px;">
+      <button class="block-add-btn" id="cellBlockSaveBtn" style="width:100%;">🔒 이 날짜 블락하기</button>
+    </div>`;
   }
   // ── Trip.com 분할 UI ──
   let splitHtml='';
@@ -1620,10 +1617,40 @@ async function openDetail(ri,y,m,d){
     memoHtml+=`<div class="memo-item"><div class="memo-item-body"><div class="memo-item-text">${memo.text.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div><div class="memo-item-date">${memo.date}</div></div><div style="display:flex;flex-direction:column;gap:4px;"><button class="memo-edit-btn" data-idx="${i}">✎</button><button class="memo-del" data-idx="${i}">✕</button></div></div>`;
   });
   memoHtml+=`</div>`;
-  document.getElementById('detailBody').innerHTML=obHtml+bkHtml+splitHtml+pwHtml+memoHtml;
+  document.getElementById('detailBody').innerHTML=obHtml+bkHtml+blockHtml+splitHtml+pwHtml+memoHtml;
   document.getElementById('detailPanel').classList.add('open');
   // 분할 편집기 렌더
   if(splitEditState) renderSplitEditor();
+  const cellBlockSaveBtn=document.getElementById('cellBlockSaveBtn');
+  if(cellBlockSaveBtn){
+    cellBlockSaveBtn.onclick=()=>{
+      const startStr=document.getElementById('cellBlockStart').value;
+      const endStr=document.getElementById('cellBlockEnd').value;
+      const reason=document.getElementById('cellBlockReason').value.trim();
+      if(!startStr||!endStr){showToast('날짜를 선택해주세요');return;}
+      const[sy,sm,sd]=startStr.split('-').map(Number);
+      const[ey,em,ed]=endStr.split('-').map(Number);
+      if(new Date(sy,sm-1,sd)>new Date(ey,em-1,ed)){showToast('종료일이 시작일보다 앞서요');return;}
+      const newBlock={roomName:r.name,startY:sy,startM:sm-1,startD:sd,endY:ey,endM:em-1,endD:ed,reason};
+      if(manualBl){
+        manualBlocks[manualBlocks.indexOf(manualBl)]=newBlock;
+        showToast('블락 수정됐어요 🔒');
+      } else {
+        manualBlocks.push(newBlock);
+        showToast('블락 추가됐어요 🔒');
+      }
+      saveBlocks();render();attachCellClicks();openDetail(ri,y,m,d);
+    };
+  }
+  const cellBlockDelBtn=document.getElementById('cellBlockDelBtn');
+  if(cellBlockDelBtn){
+    cellBlockDelBtn.onclick=()=>{
+      const bidx=manualBlocks.indexOf(manualBl);
+      if(bidx>-1) manualBlocks.splice(bidx,1);
+      saveBlocks();render();attachCellClicks();showToast('블락 해제됨');
+      document.getElementById('detailPanel').classList.remove('open');
+    };
+  }
   document.getElementById('pwEditBtn').onclick=()=>{const row=document.getElementById('pwEditRow');row.style.display=row.style.display==='none'?'flex':'none';if(row.style.display==='flex')document.getElementById('pwInput').focus();};
   document.getElementById('pwSaveBtn').onclick=()=>{
     const val=document.getElementById('pwInput').value.trim();if(!val)return;
@@ -1654,40 +1681,6 @@ async function openDetail(ri,y,m,d){
       document.getElementById(`mc_${idx}`).onclick=()=>openDetail(ri,y,m,d);
     };
   });
-}
-
-// ── BLOCK PANEL ──
-function renderBlockPanel(){
-  const sel=document.getElementById('blockRoom');
-  sel.innerHTML='<option value="">호실 선택</option>'+rooms.map(r=>`<option value="${r.name}">${r.name}</option>`).join('');
-  renderBlockList();
-}
-function renderBlockList(){
-  const list=document.getElementById('blockList');
-  document.getElementById('blockCount').textContent=manualBlocks.length;
-  if(!manualBlocks.length){list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;">등록된 블락이 없어요.</div>';}
-  else{
-    list.innerHTML=manualBlocks.map((bl,i)=>`
-      <div class="block-item">
-        <div class="room-dot" style="background:${rooms.find(r=>r.name===bl.roomName)?.color||'#666'}"></div>
-        <div class="block-item-info">
-          <div class="block-item-dates">🔒 ${bl.roomName} · ${dateStr(bl.startY,bl.startM,bl.startD)} ~ ${dateStr(bl.endY,bl.endM,bl.endD)}</div>
-          ${bl.reason?`<div class="block-item-reason">${bl.reason}</div>`:''}
-        </div>
-        <button class="block-edit" data-idx="${i}">✎</button>
-        <button class="block-del" data-idx="${i}">✕</button>
-      </div>`).join('');
-    list.querySelectorAll('.block-edit').forEach(btn=>{
-      btn.onclick=()=>startEditBlock(+btn.dataset.idx);
-    });
-    list.querySelectorAll('.block-del').forEach(btn=>{
-      btn.onclick=()=>{
-        const idx=+btn.dataset.idx;
-        if(editingBlockIdx===idx) cancelEditBlock();
-        manualBlocks.splice(idx,1);saveBlocks();render();renderBlockList();showToast('블락 해제됨');
-      };
-    });
-  }
 }
 
 // ── SETTINGS ──
@@ -2169,9 +2162,6 @@ document.getElementById('dateSearchInput').addEventListener('keydown',e=>{
 });
 document.getElementById('closeSettings').onclick=()=>document.getElementById('settingsPanel').classList.remove('open');
 document.getElementById('settingsPanel').addEventListener('click',e=>{if(e.target===document.getElementById('settingsPanel'))document.getElementById('settingsPanel').classList.remove('open');});
-document.getElementById('blockBtn').onclick=()=>{cancelEditBlock();document.getElementById('blockPanel').classList.add('open');renderBlockPanel();};
-document.getElementById('closeBlock').onclick=()=>{cancelEditBlock();document.getElementById('blockPanel').classList.remove('open');};
-document.getElementById('blockPanel').addEventListener('click',e=>{if(e.target===document.getElementById('blockPanel'))document.getElementById('blockPanel').classList.remove('open');});
 document.getElementById('closeDetail').onclick=()=>document.getElementById('detailPanel').classList.remove('open');
 document.getElementById('detailPanel').addEventListener('click',e=>{if(e.target===document.getElementById('detailPanel'))document.getElementById('detailPanel').classList.remove('open');});
 
@@ -2183,46 +2173,6 @@ document.getElementById('addRoomBtn').onclick=()=>{
   saveRooms();
   ['inputName','inputUrl','inputBkUrl','inputTrUrl','inputLvUrl'].forEach(id=>document.getElementById(id).value='');
   render();renderRoomList();showToast('호실 추가됐어요 ✓');
-};
-
-function startEditBlock(idx){
-  const bl=manualBlocks[idx];
-  if(!bl) return;
-  editingBlockIdx=idx;
-  document.getElementById('blockRoom').value=bl.roomName;
-  document.getElementById('blockStart').value=`${bl.startY}-${String(bl.startM+1).padStart(2,'0')}-${String(bl.startD).padStart(2,'0')}`;
-  document.getElementById('blockEnd').value=`${bl.endY}-${String(bl.endM+1).padStart(2,'0')}-${String(bl.endD).padStart(2,'0')}`;
-  document.getElementById('blockReason').value=bl.reason||'';
-  document.getElementById('blockAddBtn').textContent='🔒 블락 수정 완료';
-  document.getElementById('blockCancelEditBtn').style.display='block';
-}
-function cancelEditBlock(){
-  editingBlockIdx=null;
-  document.getElementById('blockRoom').value='';
-  document.getElementById('blockStart').value='';
-  document.getElementById('blockEnd').value='';
-  document.getElementById('blockReason').value='';
-  document.getElementById('blockAddBtn').textContent='🔒 블락 추가';
-  document.getElementById('blockCancelEditBtn').style.display='none';
-}
-document.getElementById('blockCancelEditBtn').onclick=cancelEditBlock;
-document.getElementById('blockAddBtn').onclick=()=>{
-  const roomName=document.getElementById('blockRoom').value;
-  const startStr=document.getElementById('blockStart').value;
-  const endStr=document.getElementById('blockEnd').value;
-  const reason=document.getElementById('blockReason').value.trim();
-  if(!roomName||!startStr||!endStr){showToast('호실과 날짜를 선택해주세요');return;}
-  const[sy,sm,sd]=startStr.split('-').map(Number);
-  const[ey,em,ed]=endStr.split('-').map(Number);
-  if(new Date(sy,sm-1,sd)>new Date(ey,em-1,ed)){showToast('종료일이 시작일보다 앞서요');return;}
-  if(editingBlockIdx!==null){
-    manualBlocks[editingBlockIdx]={roomName,startY:sy,startM:sm-1,startD:sd,endY:ey,endM:em-1,endD:ed,reason};
-    cancelEditBlock();
-    saveBlocks();render();renderBlockList();showToast('블락 수정됐어요 🔒');
-    return;
-  }
-  manualBlocks.push({roomName,startY:sy,startM:sm-1,startD:sd,endY:ey,endM:em-1,endD:ed,reason});
-  saveBlocks();render();renderBlockList();showToast('블락 추가됐어요 🔒');
 };
 
 // ── INIT ──
