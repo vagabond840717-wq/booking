@@ -167,7 +167,7 @@ thead { position: sticky; top: 0; z-index: 10; }
 .c-tr-occupied { background: #4a1278; border-color: transparent !important; }
 .c-tr-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
 .c-tr-checkin   { background: #1d9460; color: #fff; border-color: transparent !important; }
-.c-tr-both      { background: #4a1278; color: #fff; border-color: transparent !important; }
+.c-tr-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); color: #fff; border-color: transparent !important; }
 /* 리브애니웨어 */
 .c-lv-occupied { background: #0a6e8a; border-color: transparent !important; }
 .c-lv-checkout  { background: #e5503a; color: #fff; border-color: transparent !important; }
@@ -709,6 +709,7 @@ let curY, curM, viewMode = 'multi';
 let rooms = [];
 let manualBlocks = [];
 let trSplits = [];          // Trip.com 합쳐진 예약 수동 분할 정의
+let splitEditState = null;  // 분할 편집기 임시 상태
 let dragSrcIdx = null;
 
 const SPLIT_PLATFORMS = ['tr'];  // 분할 대상 플랫폼 (현재 Trip.com만)
@@ -888,20 +889,6 @@ function recommendSplit(roomName, oC, oO){
   return {mode:'recommend', segments, boundaries, hasGap};
 }
 
-// 경계 입력 문자열(YYYY-MM-DD, 쉼표구분) 파싱·검증. 잘못되면 null.
-function parseBoundaries(str, oC, oO){
-  const parts=(str||'').split(',').map(s=>s.trim()).filter(Boolean);
-  const bs=[];
-  for(const p of parts){
-    const mt=p.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); if(!mt) return null;
-    const b={y:+mt[1],m:+mt[2]-1,d:+mt[3]};
-    if(dnum(b)<=dnum(oC)||dnum(b)>=dnum(oO)) return null;  // 원본 범위 밖 → 거부
-    bs.push(b);
-  }
-  bs.sort((a,b)=>dnum(a)-dnum(b));
-  const uniq=[]; for(const b of bs) if(!uniq.some(u=>dnum(u)===dnum(b))) uniq.push(b);
-  return uniq;
-}
 // 분할 정의 저장/갱신/해제. boundaries 비면 통짜 유지(split 제거).
 function commitSplit(roomName, oC, oO, boundaries, decided){
   trSplits=trSplits.filter(s=>!(s.roomName===roomName&&dnum(s.origCin)===dnum(oC)&&dnum(s.origCout)===dnum(oO)));
@@ -910,37 +897,84 @@ function commitSplit(roomName, oC, oO, boundaries, decided){
   }
   saveSplits(); reapplySplits(); render(); attachCellClicks();
 }
-// 추천 카드 HTML (mode: recommend / conflict / none)
-function renderSplitSuggest(roomName,oC,oO,rec){
-  const dstr=b=>`${b.y}-${String(b.m+1).padStart(2,'0')}-${String(b.d).padStart(2,'0')}`;
-  const ds2=b=>dateStr(b.y,b.m,b.d);
-  let inner='', def='';
-  if(rec.mode==='recommend'){
-    inner+=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">💡 예전 기록으로 이렇게 나눌 수 있어요${rec.hasGap?' <span style="color:#d97706;">(⚠️ 조각은 직접 확인)</span>':''}</div>`;
-    inner+=rec.segments.map(s=>{
-      const nb=Math.round((new Date(s.cout.y,s.cout.m,s.cout.d)-new Date(s.cin.y,s.cin.m,s.cin.d))/86400000);
-      const mark=s.fromHistory?'<span style="color:var(--ab-in);">✓</span>':'<span style="color:#d97706;">⚠️</span>';
-      return `<div style="font-size:13px;padding:3px 0;">${mark} ${ds2(s.cin)} ~ ${ds2(s.cout)} <span style="color:var(--text3);font-size:11px;">${nb}박${s.fromHistory?'':' · 확인필요'}</span></div>`;
-    }).join('');
-    def=rec.boundaries.map(dstr).join(', ');
-  } else if(rec.mode==='conflict'){
-    inner+=`<div style="font-size:12px;color:#b45309;margin-bottom:8px;">⚠️ 예약 경계가 애매해요. 이력에 여러 버전이 있어요 — 직접 확인해주세요.</div>`;
-    inner+=`<div style="font-size:12px;color:var(--text2);margin-bottom:4px;">가능한 경계: ${rec.boundaryCandidates.map(ds2).join(' / ')}</div>`;
-    def=rec.boundaryCandidates.map(dstr).join(', ');
-  } else {
-    inner+=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">이력이 없어요. 경계 날짜를 직접 입력해주세요.</div>`;
+// ── 분할 편집기 (조각별 날짜 선택) ──
+function iso(p){ return `${p.y}-${String(p.m+1).padStart(2,'0')}-${String(p.d).padStart(2,'0')}`; }
+function midDate(a,z){
+  const da=new Date(a.y,a.m,a.d), dz=new Date(z.y,z.m,z.d);
+  const diff=Math.round((dz-da)/86400000);
+  if(diff<2) return null;
+  const mid=new Date(da.getTime()+Math.floor(diff/2)*86400000);
+  return {y:mid.getFullYear(),m:mid.getMonth(),d:mid.getDate()};
+}
+// state.boundaries 기준으로 조각별 편집 카드 렌더 (#splitEditor 안)
+function renderSplitEditor(){
+  const s=splitEditState; const el=document.getElementById('splitEditor'); if(!s||!el) return;
+  const pts=[s.oC,...s.boundaries,s.oO];
+  const n=pts.length-1;
+  let rows='';
+  for(let i=0;i<n;i++){
+    const cin=pts[i],cout=pts[i+1];
+    const nb=Math.round((new Date(cout.y,cout.m,cout.d)-new Date(cin.y,cin.m,cin.d))/86400000);
+    const coutHtml=(i<n-1)
+      ? `<input type="date" class="split-bd" data-i="${i}" value="${iso(cout)}" min="${iso(s.oC)}" max="${iso(s.oO)}" style="padding:5px 6px;border:1px solid var(--border2);border-radius:6px;font-size:12px;">`
+      : `<span style="font-weight:600;">${dateStr(cout.y,cout.m,cout.d)}</span>`;
+    rows+=`<div style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;flex-wrap:wrap;">
+      <span style="color:var(--navy);font-weight:600;min-width:48px;">예약 ${i+1}</span>
+      <span style="font-weight:600;">${dateStr(cin.y,cin.m,cin.d)}</span>
+      <span style="color:var(--text3);">~</span>${coutHtml}
+      <span style="color:var(--text3);">${nb}박</span></div>`;
   }
-  return `<div class="d-section-title" style="margin-top:4px;">🌐 Trip.com 예약 분할</div>
-    <div class="split-box" data-oc="${dnum(oC)}" data-oo="${dnum(oO)}" style="border:1px solid rgba(30,58,138,0.15);border-radius:10px;padding:12px;background:var(--navy-light);">
-      <div style="font-size:12px;color:var(--text3);margin-bottom:6px;">통짜 ${ds2(oC)} ~ ${ds2(oO)}</div>
-      ${inner}
-      <div style="font-size:12px;color:var(--text2);margin:8px 0 4px;">경계 날짜 (쉼표로 구분)</div>
-      <input id="splitBoundaries" value="${def}" placeholder="예: 2026-07-18, 2026-07-20" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;margin-bottom:8px;">
-      <div style="display:flex;gap:6px;">
-        <button id="splitApplyBtn" style="flex:1.3;padding:9px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">나누기</button>
-        <button id="splitCancelBtn" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;cursor:pointer;">통짜로 두기</button>
+  const relOrCancel = s.isSplit
+    ? `<button id="splitReleaseBtn" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;cursor:pointer;">분할 해제</button>`
+    : `<button id="splitCancelBtn" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;cursor:pointer;">통짜로 두기</button>`;
+  el.innerHTML=`<div class="d-section-title" style="margin-top:4px;">🌐 Trip.com 예약 ${s.isSplit?'분할 수정':'분할'} (${n}건)</div>
+    <div style="border:1px solid rgba(30,58,138,0.15);border-radius:10px;padding:12px;background:var(--navy-light);">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">💡 통짜 ${dateStr(s.oC.y,s.oC.m,s.oC.d)} ~ ${dateStr(s.oO.y,s.oO.m,s.oO.d)} · 각 예약의 체크아웃 날짜를 조정하세요</div>
+      ${rows}
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <button id="splitAddBtn" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:12px;cursor:pointer;">＋ 예약 추가</button>
+        <button id="splitDelBtn" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:12px;cursor:pointer;">－ 줄이기</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <button id="splitApplyBtn" style="flex:1.4;padding:9px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">${n>1?n+'건으로 저장':'저장'}</button>
+        ${relOrCancel}
       </div>
     </div>`;
+  bindSplitEditor();
+}
+function bindSplitEditor(){
+  const s=splitEditState; if(!s) return;
+  document.querySelectorAll('#splitEditor .split-bd').forEach(inp=>{
+    inp.onchange=()=>{
+      const i=+inp.dataset.i;
+      const p=(inp.value||'').split('-').map(Number);
+      if(p.length!==3||!p[0]){ renderSplitEditor(); return; }
+      const nb={y:p[0],m:p[1]-1,d:p[2]};
+      const prev=i===0?s.oC:s.boundaries[i-1];
+      const next=i===s.boundaries.length-1?s.oO:s.boundaries[i+1];
+      if(dnum(nb)<=dnum(prev)||dnum(nb)>=dnum(next)){ showToast('앞뒤 예약과 겹치지 않는 날짜여야 해요'); renderSplitEditor(); return; }
+      s.boundaries[i]=nb; renderSplitEditor();
+    };
+  });
+  const add=document.getElementById('splitAddBtn');
+  if(add) add.onclick=()=>{
+    const lastCin=s.boundaries.length?s.boundaries[s.boundaries.length-1]:s.oC;
+    const mid=midDate(lastCin,s.oO);
+    if(!mid){ showToast('더 나눌 공간이 없어요'); return; }
+    s.boundaries.push(mid); renderSplitEditor();
+  };
+  const del=document.getElementById('splitDelBtn');
+  if(del) del.onclick=()=>{ if(s.boundaries.length){ s.boundaries.pop(); renderSplitEditor(); } };
+  const ap=document.getElementById('splitApplyBtn');
+  if(ap) ap.onclick=()=>{
+    commitSplit(s.roomName,s.oC,s.oO,s.boundaries.slice(),true);
+    showToast(s.boundaries.length?`${s.boundaries.length+1}건으로 나눴어요 ✂️`:'통짜로 유지');
+    openDetail(s.ri,s.y,s.m,s.d);
+  };
+  const rel=document.getElementById('splitReleaseBtn');
+  if(rel) rel.onclick=()=>{ commitSplit(s.roomName,s.oC,s.oO,[],false); showToast('분할 해제됨'); openDetail(s.ri,s.y,s.m,s.d); };
+  const can=document.getElementById('splitCancelBtn');
+  if(can) can.onclick=()=>document.getElementById('detailPanel').classList.remove('open');
 }
 
 function blockTypeFor(roomName,y,m,d) {
@@ -1526,6 +1560,7 @@ async function openDetail(ri,y,m,d){
   }
   // ── Trip.com 분할 UI ──
   let splitHtml='';
+  splitEditState=null;
   const trRaw=r['_raw_trBookings']||r.trBookings||[];
   const curDate=new Date(y,m,d);
   const trSeg=trBks.find(b=>b._split);
@@ -1533,24 +1568,20 @@ async function openDetail(ri,y,m,d){
   if(trSeg){
     const ps=trSplits.find(s=>s.roomName===r.name&&curDate>=new Date(s.origCin.y,s.origCin.m,s.origCin.d)&&curDate<new Date(s.origCout.y,s.origCout.m,s.origCout.d));
     if(ps){
-      const oC=ps.origCin,oO=ps.origCout;
-      const bstr=ps.boundaries.map(b=>`${b.y}-${String(b.m+1).padStart(2,'0')}-${String(b.d).padStart(2,'0')}`).join(', ');
-      const nseg=ps.boundaries.length+1;
-      splitHtml=`<div class="d-section-title" style="margin-top:4px;">🌐 Trip.com 분할됨 (${nseg}건)</div>
-        <div class="split-box" data-oc="${dnum(oC)}" data-oo="${dnum(oO)}" style="border:1px solid rgba(30,58,138,0.15);border-radius:10px;padding:12px;background:var(--navy-light);">
-          <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">원본 ${dateStr(oC.y,oC.m,oC.d)} ~ ${dateStr(oO.y,oO.m,oO.d)} 를 나눴어요</div>
-          <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">경계 날짜 (쉼표로 구분)</div>
-          <input id="splitBoundaries" value="${bstr}" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;margin-bottom:8px;">
-          <div style="display:flex;gap:6px;">
-            <button id="splitApplyBtn" style="flex:1.3;padding:9px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">수정</button>
-            <button id="splitReleaseBtn" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;cursor:pointer;">분할 해제</button>
-          </div>
-        </div>`;
+      splitEditState={ri,y,m,d,roomName:r.name,oC:{...ps.origCin},oO:{...ps.origCout},boundaries:ps.boundaries.map(b=>({...b})),isSplit:true};
+      splitHtml=`<div id="splitEditor"></div>`;
     }
   } else if(trOrig){
     const oC={y:trOrig.cinY,m:trOrig.cinM,d:trOrig.cinD},oO={y:trOrig.coutY,m:trOrig.coutM,d:trOrig.coutD};
     const nights=Math.round((new Date(oO.y,oO.m,oO.d)-new Date(oC.y,oC.m,oC.d))/86400000);
-    if(nights>=2) splitHtml=renderSplitSuggest(r.name,oC,oO,recommendSplit(r.name,oC,oO));
+    if(nights>=2){
+      const rec=recommendSplit(r.name,oC,oO);
+      let initB=[];
+      if(rec.mode==='recommend') initB=rec.boundaries;
+      else if(rec.mode==='conflict') initB=rec.boundaryCandidates||[];
+      splitEditState={ri,y,m,d,roomName:r.name,oC,oO,boundaries:initB.map(b=>({...b})),isSplit:false};
+      splitHtml=`<div id="splitEditor"></div>`;
+    }
   }
   const firstBk=allBks[0];
   const pwKey=firstBk
@@ -1587,25 +1618,8 @@ async function openDetail(ri,y,m,d){
   memoHtml+=`</div>`;
   document.getElementById('detailBody').innerHTML=obHtml+bkHtml+splitHtml+pwHtml+memoHtml;
   document.getElementById('detailPanel').classList.add('open');
-  // 분할 버튼 핸들러
-  const splitBox=document.querySelector('#detailBody .split-box');
-  if(splitBox){
-    const oCn=+splitBox.dataset.oc, oOn=+splitBox.dataset.oo;
-    const oC={y:Math.floor(oCn/10000),m:Math.floor(oCn/100)%100-1,d:oCn%100};
-    const oO={y:Math.floor(oOn/10000),m:Math.floor(oOn/100)%100-1,d:oOn%100};
-    const aB=document.getElementById('splitApplyBtn');
-    if(aB) aB.onclick=()=>{
-      const bs=parseBoundaries(document.getElementById('splitBoundaries').value,oC,oO);
-      if(bs===null){showToast('경계 날짜 형식이 올바르지 않아요');return;}
-      commitSplit(r.name,oC,oO,bs,true);
-      showToast(bs.length?`${bs.length+1}건으로 나눴어요 ✂️`:'통짜로 유지');
-      openDetail(ri,y,m,d);
-    };
-    const rB=document.getElementById('splitReleaseBtn');
-    if(rB) rB.onclick=()=>{commitSplit(r.name,oC,oO,[],false);showToast('분할 해제됨');openDetail(ri,y,m,d);};
-    const cB=document.getElementById('splitCancelBtn');
-    if(cB) cB.onclick=()=>document.getElementById('detailPanel').classList.remove('open');
-  }
+  // 분할 편집기 렌더
+  if(splitEditState) renderSplitEditor();
   document.getElementById('pwEditBtn').onclick=()=>{const row=document.getElementById('pwEditRow');row.style.display=row.style.display==='none'?'flex':'none';if(row.style.display==='flex')document.getElementById('pwInput').focus();};
   document.getElementById('pwSaveBtn').onclick=()=>{
     const val=document.getElementById('pwInput').value.trim();if(!val)return;
