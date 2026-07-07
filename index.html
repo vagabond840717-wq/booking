@@ -192,6 +192,10 @@ thead { position: sticky; top: 0; z-index: 10; }
 .c-ab-co-lv-ci { background: linear-gradient(90deg,#e5503a 50%,#a855f7 50%); color:#fff; border-color:transparent !important; }
 .c-bl-occupied { background: #2d333d; border-color: transparent !important; }
 .c-bl-block    { background: #3d4452; color: #c0c8d8; border-color: transparent !important; }
+/* 서로 다른 플랫폼 아웃+인 조합 (에어비앤비 both와 동일 레이아웃, 아이콘만 다름) */
+.c-mix-both      { background: linear-gradient(90deg,#e5503a 50%,#1d9460 50%); color:#fff; border-color:transparent !important; }
+.c-mix-out-bl    { background: linear-gradient(90deg,#e5503a 50%,#3d4452 50%); color:#fff; border-color:transparent !important; }
+.c-mix-out-abblk { background: linear-gradient(90deg,#e5503a 50%,#6b7280 50%); color:#fff; border-color:transparent !important; }
 /* 오버부킹 */
 .c-overbooking { background: #b91c1c; outline: 2px solid #f87171; outline-offset: -2px; border-radius: 5px; border-color: transparent !important; }
 /* 복합 */
@@ -958,7 +962,7 @@ function blockTypeFor(roomName,y,m,d) {
     if(bl.roomName!==roomName) continue;
     const s=new Date(bl.startY,bl.startM,bl.startD);
     const e=new Date(bl.endY,bl.endM,bl.endD);
-    if(cur>=s&&cur<=e) return 'block';
+    if(cur>=s&&cur<=e) return cur.getTime()===s.getTime()?'start':'block';
   }
   return 'empty';
 }
@@ -1050,6 +1054,9 @@ function cellTypeForBlock(bookings,d,y,m){
 
 function isOverbooking(room,d,y,m){
   const cur=new Date(y,m,d);
+  // 지난 날짜는 아카이브에 취소·변경된 옛 예약이 남아 실제 예약과 겹쳐 보이므로 판정 제외
+  const t=today();
+  if(cur<new Date(t.y,t.m,t.d)) return false;
   const all=[...(room.bookings||[]),...(room.bkBookings||[]),...(room.trBookings||[]),...(room.lvBookings||[])];
   const occupied=all.filter(bk=>{
     const cin=new Date(bk.cinY,bk.cinM,bk.cinD);
@@ -1070,7 +1077,13 @@ function cellClsAndLbl(room,d,y,m){
   const abE=ab==='empty',abBlkE=abBlk==='empty',bkE=bk==='empty',trE=tr==='empty',lvE=lv==='empty',blE=bl==='empty';
   if(abE&&abBlkE&&bkE&&trE&&lvE&&blE) return{cls:'c-empty',lbl:''};
   function io(ct){if(ct==='checkout')return '아웃';if(ct==='checkin')return '인';if(ct==='both')return '↕';return '';}
-  function bothLbl(icon){const ic=icon?`<span style="font-size:8px;line-height:1;">${icon}</span>`:'';return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">아웃</span>${ic}<span style="font-size:7px;line-height:1;">인</span></span>`;}
+  // 아웃/인 반반 셀 공통 레이아웃: [아웃][아이콘][인]. 아웃·인 플랫폼이 다르면 아이콘 2개(아웃쪽 먼저)
+  function bothLbl(outIcon,inIcon){
+    let ic='';
+    if(outIcon&&inIcon&&outIcon!==inIcon) ic=`<span style="font-size:7px;line-height:1;letter-spacing:-1px;">${outIcon}${inIcon}</span>`;
+    else if(outIcon||inIcon) ic=`<span style="font-size:8px;line-height:1;">${outIcon||inIcon}</span>`;
+    return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">아웃</span>${ic}<span style="font-size:7px;line-height:1;">인</span></span>`;
+  }
 
   if(!blE&&abE&&abBlkE&&bkE&&trE&&lvE) return{cls:'c-bl-block',lbl:'<span class="cell-icon">🔒</span>'};
   if(!abBlkE&&abE&&bkE&&trE&&lvE&&blE){if(abBlk==='checkout')return{cls:'c-checkout',lbl:`<span class="cell-icon">✈</span><span class="cell-txt">아웃</span>`};return{cls:'c-ab-block',lbl:'<span class="cell-icon">🚫</span>'};}
@@ -1082,15 +1095,34 @@ function cellClsAndLbl(room,d,y,m){
   if(!abBlkE&&blE){
     // 블락 종료날 + 플랫폼 체크인 → 빨강+체크인색 반반 (일반 체크아웃+체크인과 동일 방식)
     if(abBlk==='checkout'){
-      if(!abE&&bkE&&trE&&lvE&&ab==='checkin') return{cls:'c-both',lbl:bothLbl()};
-      if(abE&&!bkE&&trE&&lvE&&bk==='checkin') return{cls:'c-ab-co-bk-ci',lbl:bothLbl()};
-      if(abE&&bkE&&!trE&&lvE&&tr==='checkin') return{cls:'c-ab-co-tr-ci',lbl:bothLbl()};
-      if(abE&&bkE&&trE&&!lvE&&lv==='checkin') return{cls:'c-ab-co-lv-ci',lbl:bothLbl()};
+      if(!abE&&bkE&&trE&&lvE&&ab==='checkin') return{cls:'c-both',lbl:bothLbl('✈')};
+      if(abE&&!bkE&&trE&&lvE&&bk==='checkin') return{cls:'c-ab-co-bk-ci',lbl:bothLbl('✈','🏨')};
+      if(abE&&bkE&&!trE&&lvE&&tr==='checkin') return{cls:'c-ab-co-tr-ci',lbl:bothLbl('✈','🌐')};
+      if(abE&&bkE&&trE&&!lvE&&lv==='checkin') return{cls:'c-ab-co-lv-ci',lbl:bothLbl('✈','🏡')};
     }
-    if(!abE&&bkE&&trE&&lvE&&(ab==='checkout'||ab==='checkin')) return{cls:`c-ab-blk-${ab}`,lbl:`<span class="cell-txt">${io(ab)}</span>`};
-    if(abE&&!bkE&&trE&&lvE&&(bk==='checkout'||bk==='checkin')) return{cls:`c-bk-blk-${bk}`,lbl:`<span class="cell-txt">${io(bk)}</span>`};
-    if(abE&&bkE&&!trE&&lvE&&(tr==='checkout'||tr==='checkin')) return{cls:`c-tr-blk-${tr}`,lbl:`<span class="cell-txt">${io(tr)}</span>`};
-    if(abE&&bkE&&trE&&!lvE&&(lv==='checkout'||lv==='checkin')) return{cls:`c-lv-blk-${lv}`,lbl:`<span class="cell-txt">${io(lv)}</span>`};
+    if(!abE&&bkE&&trE&&lvE&&(ab==='checkout'||ab==='checkin')) return{cls:`c-ab-blk-${ab}`,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${io(ab)}</span>`};
+    if(abE&&!bkE&&trE&&lvE&&(bk==='checkout'||bk==='checkin')) return{cls:`c-bk-blk-${bk}`,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${io(bk)}</span>`};
+    if(abE&&bkE&&!trE&&lvE&&(tr==='checkout'||tr==='checkin')) return{cls:`c-tr-blk-${tr}`,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${io(tr)}</span>`};
+    if(abE&&bkE&&trE&&!lvE&&(lv==='checkout'||lv==='checkin')) return{cls:`c-lv-blk-${lv}`,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${io(lv)}</span>`};
+  }
+  // 서로 다른 플랫폼(또는 수동 블락 시작)의 아웃+인 1:1 조합 → 에어비앤비 both와 같은 반반 셀, 아이콘만 플랫폼별
+  // (기존에는 c-dual 잡동사니 셀로 표시 — 부킹닷컴 숙박중과 같은 남색이라 혼동됨)
+  {
+    const ics={ab:'✈',bk:'🏨',tr:'🌐',lv:'🏡'};
+    const types={ab,bk,tr,lv};
+    const outs=[],ins=[];
+    for(const k of ['ab','bk','tr','lv']){
+      const t=types[k];
+      if(t==='checkout'||t==='both')outs.push(ics[k]);
+      if(t==='checkin'||t==='both')ins.push(ics[k]);
+    }
+    if(abBlk==='checkout')outs.push('🚫');
+    if(abBlk==='checkin')ins.push('🚫');
+    if(bl==='start')ins.push('🔒');
+    if(outs.length===1&&ins.length===1&&outs[0]!==ins[0]){
+      const cls=ins[0]==='🔒'?'c-mix-out-bl':ins[0]==='🚫'?'c-mix-out-abblk':'c-mix-both';
+      return{cls,lbl:bothLbl(outs[0],ins[0])};
+    }
   }
   const parts=[];
   if(!abE) parts.push(`<span style="font-size:7px;color:var(--ab-out);">✈${io(ab)}</span>`);
@@ -1814,6 +1846,17 @@ function mergeArchiveIntoRooms() {
         const uid = `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`;
         if (!existing.has(uid)) { room[dest].push(b); existing.add(uid); }
       }
+      // 부분 스냅샷 제거: 같은 플랫폼에서 다른 예약 범위 안에 완전히 포함되면 같은 숙박의 옛 버전
+      // (Trip.com은 시작일이 매일 당겨진 피드를 보내 아카이브에 여러 장 쌓임 — 워커에도 같은 정리 있음)
+      const dnum = b0 => [new Date(b0.cinY,b0.cinM,b0.cinD).getTime(), new Date(b0.coutY,b0.coutM,b0.coutD).getTime()];
+      room[dest] = room[dest].filter(b => {
+        const [bs, be] = dnum(b);
+        return !room[dest].some(o => {
+          if (o === b) return false;
+          const [os, oe] = dnum(o);
+          return os <= bs && oe >= be && (os < bs || oe > be);
+        });
+      });
     }
   }
   applySplitsAll();
