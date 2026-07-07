@@ -793,33 +793,59 @@ function extensionConflicts(room,cand,s){
   }
   return false;
 }
-// 원본이 커진(새 예약이 붙어 다시 합쳐진) 분할을 새 통짜로 이어감.
-// 늘어난 구간이 다른 예약과 겹치면 자동 승계하지 않음 → 기존대로 무효 처리(수동 확인).
+// 원본이 바뀐 분할을 새 통짜로 이어감(자동 승계).
+// ① 커진 경우(새 예약이 붙어 재병합): 늘어난 구간이 다른 예약과 겹치면 승계 안 함 → 무효 처리(수동 확인)
+// ② 줄어든 경우(일부 취소): 취소된 부분만 잘라내고 남은 통짜 안의 경계는 유지
 function migrateSplits(room,arr,mine){
   const tdn=dnum(today());
+  const added=[];
   for(const s of mine){
     if(arr.some(b=>!b._split&&splitOrigEq(b,s))) continue;  // 그대로 매칭됨
     const oS=dnum(s.origCin), oE=dnum(s.origCout);
-    const cand=arr.find(b=>{
+    // 승계 후보: 현재/미래 통짜 중 옛 범위와 다르고 다른 분할의 원본도 아닌 것
+    const cands=arr.filter(b=>{
       if(b._split) return false;
-      const nS=dnum({y:b.cinY,m:b.cinM,d:b.cinD}), nE=dnum({y:b.coutY,m:b.coutM,d:b.coutD});
-      return nS<=oS&&nE>=oE&&(nS<oS||nE>oE)&&nE>=tdn;  // 옛 범위를 품고 더 큼, 과거 이력 제외
+      const nE=dnum({y:b.coutY,m:b.coutM,d:b.coutD});
+      return nE>=tdn&&!mine.some(x=>splitOrigEq(b,x));  // 과거 이력 제외
     });
-    if(!cand) continue;
-    if(extensionConflicts(room,cand,s)) continue;
-    const nC={y:cand.cinY,m:cand.cinM,d:cand.cinD}, nO={y:cand.coutY,m:cand.coutM,d:cand.coutD};
-    const nS=dnum(nC), nE=dnum(nO);
-    // 기존 경계 유지 + 옛 시작/끝 날짜(새 예약과의 실제 경계)를 경계로 추가
-    const pts=new Map();
-    for(const p of [...s.boundaries,s.origCin,s.origCout]){
-      const n=dnum(p);
-      if(n>nS&&n<nE) pts.set(n,{y:p.y,m:p.m,d:p.d});
+    // ① 커진 경우: 옛 범위를 통째로 품는 통짜
+    const grown=cands.find(b=>dnum({y:b.cinY,m:b.cinM,d:b.cinD})<=oS&&dnum({y:b.coutY,m:b.coutM,d:b.coutD})>=oE);
+    if(grown){
+      if(extensionConflicts(room,grown,s)) continue;
+      const nC={y:grown.cinY,m:grown.cinM,d:grown.cinD}, nO={y:grown.coutY,m:grown.coutM,d:grown.coutD};
+      const nS=dnum(nC), nE=dnum(nO);
+      // 기존 경계 유지 + 옛 시작/끝 날짜(새 예약과의 실제 경계)를 경계로 추가
+      const pts=new Map();
+      for(const p of [...s.boundaries,s.origCin,s.origCout]){
+        const n=dnum(p);
+        if(n>nS&&n<nE) pts.set(n,{y:p.y,m:p.m,d:p.d});
+      }
+      const nb=[...pts.keys()].sort((a,b)=>a-b).map(k=>pts.get(k));
+      if(!nb.length) continue;
+      s.origCin=nC; s.origCout=nO; s.boundaries=nb;
+      migratedSplits.push(s);
+      continue;
     }
-    const nb=[...pts.keys()].sort((a,b)=>a-b).map(k=>pts.get(k));
-    if(!nb.length) continue;
-    s.origCin=nC; s.origCout=nO; s.boundaries=nb;
-    migratedSplits.push(s);
+    // ② 줄어든 경우: 옛 범위 안에 남은 통짜마다, 그 안에 든 기존 경계만 잘라 이어감
+    //    (경계가 안 남는 통짜 = 원래 조각 그대로 = 분할 불필요 → 건너뜀)
+    const oB=s.boundaries;  // 원본 경계 스냅샷 (carrier 갱신 후에도 원본 기준으로 자름)
+    let carrier=s;  // 첫 통짜는 기존 정의를 재사용, 둘째부터는 새 정의 추가
+    for(const b of cands){
+      const nS=dnum({y:b.cinY,m:b.cinM,d:b.cinD}), nE=dnum({y:b.coutY,m:b.coutM,d:b.coutD});
+      if(!(nS>=oS&&nE<=oE)) continue;
+      const nb=oB.filter(p=>{const n=dnum(p);return n>nS&&n<nE;}).map(p=>({y:p.y,m:p.m,d:p.d}));
+      if(!nb.length) continue;
+      const nC={y:b.cinY,m:b.cinM,d:b.cinD}, nO={y:b.coutY,m:b.coutM,d:b.coutD};
+      if(carrier){
+        carrier.origCin=nC; carrier.origCout=nO; carrier.boundaries=nb;
+        migratedSplits.push(carrier); carrier=null;
+      }else{
+        const ns={roomName:s.roomName,platform:s.platform||'tr',origCin:nC,origCout:nO,boundaries:nb,decided:!!s.decided};
+        trSplits.push(ns); added.push(ns); migratedSplits.push(ns);
+      }
+    }
   }
+  mine.push(...added);  // 새로 만든 정의도 이번 매칭에 포함
 }
 // 통짜 예약을 조각으로 치환. 원본은 제거하고 조각 삽입(오버부킹 방지). 무효 split 반환.
 function applySplits(room){
