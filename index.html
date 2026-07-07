@@ -814,7 +814,8 @@ function migrateSplits(room,arr,mine){
       if(extensionConflicts(room,grown,s)) continue;
       const nC={y:grown.cinY,m:grown.cinM,d:grown.cinD}, nO={y:grown.coutY,m:grown.coutM,d:grown.coutD};
       const nS=dnum(nC), nE=dnum(nO);
-      // 기존 경계 유지 + 옛 시작/끝 날짜(새 예약과의 실제 경계)를 경계로 추가
+      // 기존 경계 유지 + 옛 시작/끝 날짜(새 예약과의 실제 경계일 수 있음)를 경계로 추가
+      const oldB=new Set(s.boundaries.map(dnum));
       const pts=new Map();
       for(const p of [...s.boundaries,s.origCin,s.origCout]){
         const n=dnum(p);
@@ -822,7 +823,9 @@ function migrateSplits(room,arr,mine){
       }
       const nb=[...pts.keys()].sort((a,b)=>a-b).map(k=>pts.get(k));
       if(!nb.length) continue;
+      // 옛 시작/끝 날짜에서 유래한 경계 = "새 손님 추가"일 수도 "날짜만 변경"일 수도 있어 확정 못 함 → 확인 필요 표시
       s.origCin=nC; s.origCout=nO; s.boundaries=nb;
+      s.unsure=[...pts.keys()].filter(n=>!oldB.has(n));
       migratedSplits.push(s);
       continue;
     }
@@ -837,10 +840,10 @@ function migrateSplits(room,arr,mine){
       if(!nb.length) continue;
       const nC={y:b.cinY,m:b.cinM,d:b.cinD}, nO={y:b.coutY,m:b.coutM,d:b.coutD};
       if(carrier){
-        carrier.origCin=nC; carrier.origCout=nO; carrier.boundaries=nb;
+        carrier.origCin=nC; carrier.origCout=nO; carrier.boundaries=nb; carrier.unsure=[];
         migratedSplits.push(carrier); carrier=null;
       }else{
-        const ns={roomName:s.roomName,platform:s.platform||'tr',origCin:nC,origCout:nO,boundaries:nb,decided:!!s.decided};
+        const ns={roomName:s.roomName,platform:s.platform||'tr',origCin:nC,origCout:nO,boundaries:nb,decided:!!s.decided,unsure:[]};
         trSplits.push(ns); added.push(ns); migratedSplits.push(ns);
       }
     }
@@ -974,14 +977,18 @@ function renderSplitEditor(){
   for(let i=0;i<n;i++){
     const cin=pts[i],cout=pts[i+1];
     const nb=Math.round((new Date(cout.y,cout.m,cout.d)-new Date(cin.y,cin.m,cin.d))/86400000);
+    const isUnsure=i<n-1&&s.unsure&&s.unsure.has(dnum(cout));
     const coutHtml=(i<n-1)
       ? `<input type="date" class="split-bd" data-i="${i}" value="${iso(cout)}" min="${iso(s.oC)}" max="${iso(s.oO)}" style="padding:5px 6px;border:1px solid var(--border2);border-radius:6px;font-size:12px;">`
       : `<span style="font-weight:600;">${dateStr(cout.y,cout.m,cout.d)}</span>`;
+    const unsureHtml=isUnsure
+      ? `<span style="color:#b45309;font-size:11px;">⚠️ 확인필요</span><button class="split-merge" data-i="${i}" style="padding:3px 8px;border-radius:6px;border:1px solid #f59e0b;background:#fffbeb;color:#b45309;font-size:11px;cursor:pointer;white-space:nowrap;">❓ 합치기</button>`
+      : '';
     rows+=`<div style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;flex-wrap:wrap;">
       <span style="color:var(--navy);font-weight:600;min-width:48px;">예약 ${i+1}</span>
       <span style="font-weight:600;">${dateStr(cin.y,cin.m,cin.d)}</span>
       <span style="color:var(--text3);">~</span>${coutHtml}
-      <span style="color:var(--text3);">${nb}박</span></div>`;
+      <span style="color:var(--text3);">${nb}박</span>${unsureHtml}</div>`;
   }
   const relOrCancel = s.isSplit
     ? `<button id="splitReleaseBtn" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;cursor:pointer;">분할 해제</button>`
@@ -1013,6 +1020,15 @@ function bindSplitEditor(){
       const next=i===s.boundaries.length-1?s.oO:s.boundaries[i+1];
       if(dnum(nb)<=dnum(prev)||dnum(nb)>=dnum(next)){ showToast('앞뒤 예약과 겹치지 않는 날짜여야 해요'); renderSplitEditor(); return; }
       s.boundaries[i]=nb; renderSplitEditor();
+    };
+  });
+  document.querySelectorAll('#splitEditor .split-merge').forEach(btn=>{
+    btn.onclick=()=>{
+      const i=+btn.dataset.i;
+      s.boundaries.splice(i,1);
+      commitSplit(s.roomName,s.oC,s.oO,s.boundaries.slice(),true);
+      showToast('경계를 합쳤어요 ✓');
+      openDetail(s.ri,s.y,s.m,s.d);
     };
   });
   const add=document.getElementById('splitAddBtn');
@@ -1653,7 +1669,7 @@ async function openDetail(ri,y,m,d){
   if(trSeg){
     const ps=trSplits.find(s=>s.roomName===r.name&&curDate>=new Date(s.origCin.y,s.origCin.m,s.origCin.d)&&curDate<new Date(s.origCout.y,s.origCout.m,s.origCout.d));
     if(ps){
-      splitEditState={ri,y,m,d,roomName:r.name,oC:{...ps.origCin},oO:{...ps.origCout},boundaries:ps.boundaries.map(b=>({...b})),isSplit:true};
+      splitEditState={ri,y,m,d,roomName:r.name,oC:{...ps.origCin},oO:{...ps.origCout},boundaries:ps.boundaries.map(b=>({...b})),isSplit:true,unsure:new Set(ps.unsure||[])};
       splitHtml=`<div id="splitEditor"></div>`;
     }
   } else if(trOrig){
@@ -1664,7 +1680,7 @@ async function openDetail(ri,y,m,d){
       let initB=[];
       if(rec.mode==='recommend') initB=rec.boundaries;
       else if(rec.mode==='conflict') initB=rec.boundaryCandidates||[];
-      splitEditState={ri,y,m,d,roomName:r.name,oC,oO,boundaries:initB.map(b=>({...b})),isSplit:false};
+      splitEditState={ri,y,m,d,roomName:r.name,oC,oO,boundaries:initB.map(b=>({...b})),isSplit:false,unsure:new Set()};
       splitHtml=`<div id="splitEditor"></div>`;
     }
   }
