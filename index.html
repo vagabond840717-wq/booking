@@ -760,7 +760,8 @@ async function loadSplits() {
 }
 
 const SPLIT_KEYMAP = { ab:'bookings', bk:'bkBookings', tr:'trBookings', lv:'lvBookings' };
-let staleSplits = [];  // 원본이 바뀌어 무효화된 분할 (안내용)
+let staleSplits = [];     // 원본이 바뀌어 무효화된 분할 (안내용)
+let migratedSplits = [];  // 원본이 커져(새 예약이 붙어) 자동 승계된 분할 (안내용)
 
 // 예약이 split의 원본(origCin~origCout)과 완전히 일치하는가
 function splitOrigEq(b,s){
@@ -770,6 +771,55 @@ function splitOrigEq(b,s){
 // 경계점 a(체크인)~z(체크아웃)로 조각 예약 생성
 function makeSeg(a,z,orig){
   return {cinY:a.y,cinM:a.m,cinD:a.d,coutY:z.y,coutM:z.m,coutD:z.d,platform:orig.platform||'trip',summary:orig.summary||'',_split:true};
+}
+// 예약 b가 [aS,aE) 날짜 구간과 하루라도 겹치는가 (체크아웃 날은 제외)
+function rangeOverlapsBooking(aS,aE,b){
+  const bS=dnum({y:b.cinY,m:b.cinM,d:b.cinD}), bE=dnum({y:b.coutY,m:b.coutM,d:b.coutD});
+  return aS<bE&&bS<aE;
+}
+// cand(커진 통짜)에서 옛 원본(s) 밖으로 늘어난 구간이 같은 호실 다른 예약과 겹치는가
+function extensionConflicts(room,cand,s){
+  const nS=dnum({y:cand.cinY,m:cand.cinM,d:cand.cinD}), nE=dnum({y:cand.coutY,m:cand.coutM,d:cand.coutD});
+  const exts=[];
+  if(nS<dnum(s.origCin)) exts.push([nS,dnum(s.origCin)]);
+  if(dnum(s.origCout)<nE) exts.push([dnum(s.origCout),nE]);
+  if(!exts.length) return false;
+  for(const key of Object.values(SPLIT_KEYMAP)){
+    const list=room['_raw_'+key]||room[key]||[];
+    for(const b of list){
+      if(b===cand||b._split) continue;
+      for(const [aS,aE] of exts) if(rangeOverlapsBooking(aS,aE,b)) return true;
+    }
+  }
+  return false;
+}
+// 원본이 커진(새 예약이 붙어 다시 합쳐진) 분할을 새 통짜로 이어감.
+// 늘어난 구간이 다른 예약과 겹치면 자동 승계하지 않음 → 기존대로 무효 처리(수동 확인).
+function migrateSplits(room,arr,mine){
+  const tdn=dnum(today());
+  for(const s of mine){
+    if(arr.some(b=>!b._split&&splitOrigEq(b,s))) continue;  // 그대로 매칭됨
+    const oS=dnum(s.origCin), oE=dnum(s.origCout);
+    const cand=arr.find(b=>{
+      if(b._split) return false;
+      const nS=dnum({y:b.cinY,m:b.cinM,d:b.cinD}), nE=dnum({y:b.coutY,m:b.coutM,d:b.coutD});
+      return nS<=oS&&nE>=oE&&(nS<oS||nE>oE)&&nE>=tdn;  // 옛 범위를 품고 더 큼, 과거 이력 제외
+    });
+    if(!cand) continue;
+    if(extensionConflicts(room,cand,s)) continue;
+    const nC={y:cand.cinY,m:cand.cinM,d:cand.cinD}, nO={y:cand.coutY,m:cand.coutM,d:cand.coutD};
+    const nS=dnum(nC), nE=dnum(nO);
+    // 기존 경계 유지 + 옛 시작/끝 날짜(새 예약과의 실제 경계)를 경계로 추가
+    const pts=new Map();
+    for(const p of [...s.boundaries,s.origCin,s.origCout]){
+      const n=dnum(p);
+      if(n>nS&&n<nE) pts.set(n,{y:p.y,m:p.m,d:p.d});
+    }
+    const nb=[...pts.keys()].sort((a,b)=>a-b).map(k=>pts.get(k));
+    if(!nb.length) continue;
+    s.origCin=nC; s.origCout=nO; s.boundaries=nb;
+    migratedSplits.push(s);
+  }
 }
 // 통짜 예약을 조각으로 치환. 원본은 제거하고 조각 삽입(오버부킹 방지). 무효 split 반환.
 function applySplits(room){
@@ -781,6 +831,7 @@ function applySplits(room){
     room['_raw_'+key]=arr;  // 원본(raw) 보관 → 해제/재계산 시 복원용
     const mine=trSplits.filter(s=>s.roomName===room.name&&(s.platform||'tr')===plat);
     if(!mine.length) continue;
+    migrateSplits(room,arr,mine);
     const matched=new Set();
     const out=[];
     for(const b of arr){
@@ -801,6 +852,7 @@ function applySplits(room){
 // 전체 호실에 분할 적용 + 무효 split 수집
 function applySplitsAll(){
   staleSplits=[];
+  migratedSplits=[];
   for(const r of rooms){ staleSplits.push(...applySplits(r)); }
 }
 // 분할 정의 변경 후: 원본 복원 → 재가공 (KV 재요청 없이 즉시 반영)
@@ -813,8 +865,14 @@ function reapplySplits(){
   }
   applySplitsAll();
 }
-// 피드 변경으로 무효화된 분할 정리 + 사용자 안내
+// 피드 변경으로 무효화된 분할 정리 + 자동 승계 저장 + 사용자 안내
 function notifyStaleSplits(){
+  if(migratedSplits.length){
+    const mNames=[...new Set(migratedSplits.map(s=>s.roomName))];
+    saveSplits();
+    migratedSplits=[];
+    showToast(`${mNames.join(', ')} 새 예약이 붙어 분할을 이어갔어요 — 한번 확인해 주세요`);
+  }
   if(!staleSplits.length) return;
   const names=[...new Set(staleSplits.map(s=>s.roomName))];
   trSplits=trSplits.filter(s=>!staleSplits.includes(s));
