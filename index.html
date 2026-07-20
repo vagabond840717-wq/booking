@@ -144,6 +144,8 @@ thead { position: sticky; top: 0; z-index: 10; }
   gap: 1px; font-size: 9px; font-weight: 600; position: relative; line-height: 1;
 }
 .cell-icon { font-size: 9px; line-height: 1; display: block; pointer-events: none; }
+/* 분할 자동 승계 — 확인 필요(잠정) 배지: 확인 전까지 유지됨 */
+.attn-badge { position: absolute; top: -1px; right: 0px; font-size: 8px; line-height: 1; z-index: 2; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.45); }
 .cell-txt { font-size: 8px; font-weight: 700; line-height: 1; display: block; pointer-events: none; }
 
 /* 예약 셀: 어두운 회색 배경, 밝기 적당한 컬러 */
@@ -763,6 +765,39 @@ async function loadSplits() {
   try{trSplits=JSON.parse(localStorage.getItem('hana_splits')||'[]');}catch(e){trSplits=[];}
 }
 
+// ── FEED SNAPSHOT (직전 피드 모양 기억 — 분할 자동 승계용) ──
+let feedPrev = {};        // { roomName: [ {cinY..coutD}, ... ] } 마지막으로 본 Trip.com 원본 통짜 목록
+let feedAttention = [];   // 승계 근거가 없는 변화 [{roomName,cin:{y,m,d},cout:{y,m,d}}] — 확인 전까지 ⚠ 유지
+let _feedPrevJson = '';   // 마지막 KV 저장본 (변화 없으면 write 생략 — KV 한도 원칙)
+
+function saveFeedPrev(){
+  const payload={rooms:feedPrev,attention:feedAttention};
+  const json=JSON.stringify(payload);
+  try{localStorage.setItem('hana_feed_prev',json);}catch(e){}
+  if(json===_feedPrevJson) return;
+  _feedPrevJson=json;
+  fetch(`${PROXY}/extra`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'tr_feed_prev',data:payload})}).catch(()=>{});
+}
+async function loadFeedPrev(){
+  try{
+    const resp=await fetch(`${PROXY}/extra?key=tr_feed_prev`);
+    if(resp.ok){
+      const data=await resp.json();
+      if(data&&typeof data==='object'&&!Array.isArray(data)){
+        feedPrev=data.rooms||{};
+        feedAttention=Array.isArray(data.attention)?data.attention:[];
+        _feedPrevJson=JSON.stringify({rooms:feedPrev,attention:feedAttention});
+        try{localStorage.setItem('hana_feed_prev',_feedPrevJson);}catch(e){}
+        return;
+      }
+    }
+  }catch(e){}
+  try{
+    const d=JSON.parse(localStorage.getItem('hana_feed_prev')||'null');
+    if(d&&typeof d==='object'){feedPrev=d.rooms||{};feedAttention=Array.isArray(d.attention)?d.attention:[];}
+  }catch(e){}
+}
+
 const SPLIT_KEYMAP = { ab:'bookings', bk:'bkBookings', tr:'trBookings', lv:'lvBookings' };
 let staleSplits = [];  // 원본이 바뀌어 무효화된 분할 (안내용)
 
@@ -817,14 +852,105 @@ function reapplySplits(){
   }
   applySplitsAll();
 }
-// 피드 변경으로 무효화된 분할 정리 + 사용자 안내
+// 피드 변경 안내: 승계(잠정 유지)/주의는 배지가 본체, 토스트는 보조.
+// 승계 못 하고 남은 무효 분할(취소로 쪼개진 경우)만 현행대로 삭제+안내.
 function notifyStaleSplits(){
-  if(!staleSplits.length) return;
-  const names=[...new Set(staleSplits.map(s=>s.roomName))];
-  trSplits=trSplits.filter(s=>!staleSplits.includes(s));
-  saveSplits();
-  staleSplits=[];
-  showToast(`${names.join(', ')} 예약이 바뀌어 분할이 해제됐어요`);
+  const msgs=[];
+  if(inheritNotice.splits.length)
+    msgs.push(`${inheritNotice.splits.join(', ')} 예약이 바뀌어 경계를 잠정 유지했어요 — ⚠ 표시를 눌러 확인해 주세요`);
+  const attOnly=inheritNotice.attention.filter(n=>!inheritNotice.splits.includes(n));
+  if(attOnly.length)
+    msgs.push(`${attOnly.join(', ')} 예약이 바뀌었어요 — ⚠ 표시를 눌러 확인해 주세요`);
+  inheritNotice={splits:[],attention:[]};
+  if(staleSplits.length){
+    const names=[...new Set(staleSplits.map(s=>s.roomName))];
+    trSplits=trSplits.filter(s=>!staleSplits.includes(s));
+    saveSplits();
+    staleSplits=[];
+    msgs.push(`${names.join(', ')} 예약이 바뀌어 분할이 해제됐어요`);
+  }
+  if(msgs.length) showToast(msgs.join(' · '));
+}
+
+// ── 분할 자동 승계 (직전 피드 스냅샷 비교 — 확인 전까지 잠정 유지) ──
+let inheritNotice = {splits:[], attention:[]};  // 이번 로드에서 생긴 잠정 분할/주의 호실명 (토스트용)
+
+function sameShape(a,b){
+  return a.cinY===b.cinY&&a.cinM===b.cinM&&a.cinD===b.cinD
+      &&a.coutY===b.coutY&&a.coutM===b.coutM&&a.coutD===b.coutD;
+}
+// 호실 하나의 현재 피드와 직전 스냅샷을 비교해 잠정 분할(decided:false)/주의 기록 생성.
+// 이 호실 피드가 실제 로드된 경우에만 호출할 것 (스냅샷을 현재 피드로 갱신함). 반환: trSplits 변경 여부.
+function inheritRoom(room){
+  const rn=room.name;
+  const cur=(room.trBookings||[]).map(b=>({cinY:b.cinY,cinM:b.cinM,cinD:b.cinD,coutY:b.coutY,coutM:b.coutM,coutD:b.coutD}));
+  const prev=feedPrev[rn]||[];
+  let splitsChanged=false;
+  for(const L of cur){
+    if(prev.some(p=>sameShape(p,L))) continue;               // 직전에도 있던 모양 — 변화 없음
+    const Ls=dnum({y:L.cinY,m:L.cinM,d:L.cinD}), Le=dnum({y:L.coutY,m:L.coutM,d:L.coutD});
+    // 이 통짜에 대한 split이 이미 있으면(잠정 포함) 그대로 둠
+    if(trSplits.some(s=>s.roomName===rn&&(s.platform||'tr')==='tr'&&dnum(s.origCin)===Ls&&dnum(s.origCout)===Le)) continue;
+    // ① 직전 조각 중 L 안에 완전히 포함되는 것 → 경계 근거 (안쪽에 있는 가장자리 날짜가 경계)
+    const bset=new Map();    // dnum → {y,m,d}
+    const autoSet=new Set(); // 옛 가장자리에서 자동 추가된 경계 dnum ("연장이에요" 버튼용)
+    let contained=false;
+    for(const p of prev){
+      const ps=dnum({y:p.cinY,m:p.cinM,d:p.cinD}), pe=dnum({y:p.coutY,m:p.coutM,d:p.coutD});
+      if(ps>=Ls&&pe<=Le){
+        contained=true;
+        if(ps>Ls){bset.set(ps,{y:p.cinY,m:p.cinM,d:p.cinD});autoSet.add(ps);}
+        if(pe<Le){bset.set(pe,{y:p.coutY,m:p.coutM,d:p.coutD});autoSet.add(pe);}
+      }
+    }
+    // ② L 안에 흡수된 기존 split → 그 경계를 승계 + 옛 가장자리도 경계 후보
+    const absorbed=trSplits.filter(s=>{
+      if(s.roomName!==rn||(s.platform||'tr')!=='tr') return false;
+      const ss=dnum(s.origCin), se=dnum(s.origCout);
+      return ss>=Ls&&se<=Le&&!(ss===Ls&&se===Le);
+    });
+    for(const s of absorbed){
+      contained=true;
+      for(const b of (s.boundaries||[])){const bd=dnum(b); if(bd>Ls&&bd<Le) bset.set(bd,{y:b.y,m:b.m,d:b.d});}
+      const ss=dnum(s.origCin), se=dnum(s.origCout);
+      if(ss>Ls){bset.set(ss,{y:s.origCin.y,m:s.origCin.m,d:s.origCin.d});autoSet.add(ss);}
+      if(se<Le){bset.set(se,{y:s.origCout.y,m:s.origCout.m,d:s.origCout.d});autoSet.add(se);}
+    }
+    if(contained&&bset.size){
+      const ordered=[...bset.entries()].sort((a,b)=>a[0]-b[0]);
+      if(absorbed.length) trSplits=trSplits.filter(s=>!absorbed.includes(s));
+      trSplits.push({
+        roomName:rn, platform:'tr',
+        origCin:{y:L.cinY,m:L.cinM,d:L.cinD}, origCout:{y:L.coutY,m:L.coutM,d:L.coutD},
+        boundaries:ordered.map(e=>e[1]),
+        decided:false, inherited:true,
+        autoEdges:ordered.filter(e=>autoSet.has(e[0])).map(e=>e[1])
+      });
+      splitsChanged=true;
+      if(!inheritNotice.splits.includes(rn)) inheritNotice.splits.push(rn);
+      continue;
+    }
+    // ③ 직전 조각과 어중간하게 겹치는 새 모양 → 주의 기록.
+    //    (축소형 = 취소로 피드가 알아서 나뉜 것, 완전 새 예약 = 정상 → 둘 다 조용히 통과)
+    const partial=prev.some(p=>{
+      const ps=dnum({y:p.cinY,m:p.cinM,d:p.cinD}), pe=dnum({y:p.coutY,m:p.coutM,d:p.coutD});
+      const overlap=ps<Le&&pe>Ls;
+      const LinP=Ls>=ps&&Le<=pe;
+      const PinL=ps>=Ls&&pe<=Le;
+      return overlap&&!LinP&&!PinL;
+    });
+    if(partial&&!feedAttention.some(a=>a.roomName===rn&&dnum(a.cin)===Ls&&dnum(a.cout)===Le)){
+      feedAttention.push({roomName:rn,cin:{y:L.cinY,m:L.cinM,d:L.cinD},cout:{y:L.coutY,m:L.coutM,d:L.coutD}});
+      if(!inheritNotice.attention.includes(rn)) inheritNotice.attention.push(rn);
+    }
+  }
+  // 피드에서 사라진 모양의 주의 기록은 정리
+  feedAttention=feedAttention.filter(a=>{
+    if(a.roomName!==rn) return true;
+    return cur.some(L=>dnum(a.cin)===dnum({y:L.cinY,m:L.cinM,d:L.cinD})&&dnum(a.cout)===dnum({y:L.coutY,m:L.coutM,d:L.coutD}));
+  });
+  feedPrev[rn]=cur;
+  return splitsChanged;
 }
 
 // ── 분할 추천 (이력 대조) ──
@@ -874,6 +1000,9 @@ function commitSplit(roomName, oC, oO, boundaries, decided){
   if(boundaries&&boundaries.length){
     trSplits.push({roomName,platform:'tr',origCin:oC,origCout:oO,boundaries,decided:!!decided});
   }
+  // 이 통짜에 대한 주의(⚠) 기록이 있으면 사용자가 처리한 것 → 해소
+  const na=feedAttention.filter(a=>!(a.roomName===roomName&&dnum(a.cin)===dnum(oC)&&dnum(a.cout)===dnum(oO)));
+  if(na.length!==feedAttention.length){feedAttention=na;saveFeedPrev();}
   saveSplits(); reapplySplits(); render(); attachCellClicks();
 }
 // ── 분할 편집기 (조각별 날짜 선택) ──
@@ -1002,6 +1131,7 @@ async function loadBookingsFromKV() {
     const resp=await fetch(`${PROXY}/bookings`);
     if(!resp.ok) return;
     const data=await resp.json();
+    let splitsDirty=false;
     rooms.forEach(room=>{
       const bks=data[room.name];
       if(!bks) return;
@@ -1011,7 +1141,11 @@ async function loadBookingsFromKV() {
       room.bkBookings=bks.bk||[];
       room.trBookings=bks.tr||[];
       room.lvBookings=bks.lv||[];
+      // 분할 자동 승계: 아카이브 병합 전 순수 피드로 직전 스냅샷과 비교
+      if(inheritRoom(room)) splitsDirty=true;
     });
+    if(splitsDirty) saveSplits();
+    saveFeedPrev();
     // 분할 적용은 mergeArchiveIntoRooms() 끝에서 일괄 수행 (원본 오염 방지)
   }catch(e){}
 }
@@ -1066,7 +1200,26 @@ function isOverbooking(room,d,y,m){
   return occupied.length>=2;
 }
 
+// 이 날짜 셀에 ⚠(확인 필요) 배지를 달아야 하는가
+// — 잠정 승계 분할(inherited && !decided)의 각 조각 체크인일 / 주의 통짜의 체크인일
+function needsAttention(roomName,y,m,d){
+  const cd=dnum({y,m,d});
+  for(const s of trSplits){
+    if(s.roomName!==roomName||!s.inherited||s.decided) continue;
+    if(dnum(s.origCin)===cd) return true;
+    for(const b of (s.boundaries||[])) if(dnum(b)===cd) return true;
+  }
+  for(const a of feedAttention){
+    if(a.roomName===roomName&&dnum(a.cin)===cd) return true;
+  }
+  return false;
+}
 function cellClsAndLbl(room,d,y,m){
+  const r=cellClsAndLblBase(room,d,y,m);
+  if(needsAttention(room.name,y,m,d)) r.lbl+='<span class="attn-badge">⚠</span>';
+  return r;
+}
+function cellClsAndLblBase(room,d,y,m){
   const ab=cellTypeFor(room.bookings||[],d,y,m);
   const abBlk=cellTypeForBlock(room.abBlocks||[],d,y,m);
   const bk=cellTypeFor(room.bkBookings||[],d,y,m);
@@ -1594,18 +1747,42 @@ async function openDetail(ri,y,m,d){
   // ── Trip.com 분할 UI ──
   let splitHtml='';
   splitEditState=null;
+  let pendSplit=null;   // 잠정 승계 분할 (확인 카드 대상)
+  let attnEntry=null;   // 주의(⚠) 통짜 기록
   const trRaw=r['_raw_trBookings']||r.trBookings||[];
   const curDate=new Date(y,m,d);
   const trSeg=trBks.find(b=>b._split);
   const trOrig=findAllIn(trRaw,y,m,d).find(b=>!b._split);
+  const attnCardTitle=`<div class="d-section-title" style="margin-top:4px;">⚠ 예약이 바뀌어 확인이 필요해요</div>`;
   if(trSeg){
     const ps=trSplits.find(s=>s.roomName===r.name&&curDate>=new Date(s.origCin.y,s.origCin.m,s.origCin.d)&&curDate<new Date(s.origCout.y,s.origCout.m,s.origCout.d));
     if(ps){
       splitEditState={ri,y,m,d,roomName:r.name,oC:{...ps.origCin},oO:{...ps.origCout},boundaries:ps.boundaries.map(b=>({...b})),isSplit:true};
-      splitHtml=`<div id="splitEditor"></div>`;
+      if(ps.inherited&&!ps.decided){
+        pendSplit=ps;
+        const ext=(ps.autoEdges||[]).length===1
+          ?`<button id="splitExtendBtn" style="width:100%;margin-top:6px;padding:9px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;cursor:pointer;">아니에요, 마지막 손님이 연장한 거예요 (${dateStr(ps.autoEdges[0].y,ps.autoEdges[0].m,ps.autoEdges[0].d)} 경계 제거)</button>`:'';
+        splitHtml=attnCardTitle+`
+        <div class="bk-info-box" style="border-color:rgba(240,179,91,0.55);background:rgba(240,179,91,0.08);">
+          <div style="font-size:12px;line-height:1.5;margin-bottom:8px;">피드가 합쳐져 와서 <b>이전에 알던 경계로 잠정 분할</b>해 뒀어요. 맞는지 확인해 주세요.</div>
+          <button id="splitConfirmBtn" style="width:100%;padding:9px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">✔ 이 경계대로 확정 (새 예약이 맞아요)</button>
+          ${ext}
+          <div style="font-size:11px;color:var(--text3);margin-top:6px;">날짜가 다르면 아래 편집기에서 고쳐 저장하고, 예약 1건이 맞으면 [분할 해제]를 누르세요.</div>
+        </div><div id="splitEditor"></div>`;
+      } else {
+        splitHtml=`<div id="splitEditor"></div>`;
+      }
     }
   } else if(trOrig){
     const oC={y:trOrig.cinY,m:trOrig.cinM,d:trOrig.cinD},oO={y:trOrig.coutY,m:trOrig.coutM,d:trOrig.coutD};
+    attnEntry=feedAttention.find(a=>a.roomName===r.name&&dnum(a.cin)===dnum(oC)&&dnum(a.cout)===dnum(oO))||null;
+    if(attnEntry){
+      splitHtml=attnCardTitle+`
+      <div class="bk-info-box" style="border-color:rgba(240,179,91,0.55);background:rgba(240,179,91,0.08);">
+        <div style="font-size:12px;line-height:1.5;margin-bottom:8px;">이전 예약과 날짜가 어중간하게 달라져서 자동으로 나누지 못했어요. 여러 건이면 아래 편집기로 나눠 주세요.</div>
+        <button id="attnKeepBtn" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border2);background:#fff;font-size:13px;cursor:pointer;">예약 1건이 맞아요 — 그대로 두기</button>
+      </div>`;
+    }
     const nights=Math.round((new Date(oO.y,oO.m,oO.d)-new Date(oC.y,oC.m,oC.d))/86400000);
     if(nights>=2){
       const rec=recommendSplit(r.name,oC,oO);
@@ -1613,7 +1790,7 @@ async function openDetail(ri,y,m,d){
       if(rec.mode==='recommend') initB=rec.boundaries;
       else if(rec.mode==='conflict') initB=rec.boundaryCandidates||[];
       splitEditState={ri,y,m,d,roomName:r.name,oC,oO,boundaries:initB.map(b=>({...b})),isSplit:false};
-      splitHtml=`<div id="splitEditor"></div>`;
+      splitHtml+=`<div id="splitEditor"></div>`;
     }
   }
   const firstBk=allBks[0];
@@ -1653,6 +1830,29 @@ async function openDetail(ri,y,m,d){
   document.getElementById('detailPanel').classList.add('open');
   // 분할 편집기 렌더
   if(splitEditState) renderSplitEditor();
+  // 잠정 승계 분할 / 주의 확인 카드 버튼
+  const splitConfirmBtn=document.getElementById('splitConfirmBtn');
+  if(splitConfirmBtn&&pendSplit) splitConfirmBtn.onclick=()=>{
+    commitSplit(r.name,{...pendSplit.origCin},{...pendSplit.origCout},pendSplit.boundaries.map(b=>({...b})),true);
+    showToast('경계를 확정했어요 ✔');
+    openDetail(ri,y,m,d);
+  };
+  const splitExtendBtn=document.getElementById('splitExtendBtn');
+  if(splitExtendBtn&&pendSplit) splitExtendBtn.onclick=()=>{
+    const edge=pendSplit.autoEdges[0];
+    const nb=pendSplit.boundaries.filter(b=>dnum(b)!==dnum(edge)).map(b=>({...b}));
+    commitSplit(r.name,{...pendSplit.origCin},{...pendSplit.origCout},nb,true);
+    showToast('연장으로 확정했어요 ✔');
+    openDetail(ri,y,m,d);
+  };
+  const attnKeepBtn=document.getElementById('attnKeepBtn');
+  if(attnKeepBtn&&attnEntry) attnKeepBtn.onclick=()=>{
+    feedAttention=feedAttention.filter(a=>a!==attnEntry);
+    saveFeedPrev();
+    render();attachCellClicks();
+    showToast('확인했어요 ✔');
+    openDetail(ri,y,m,d);
+  };
   const cellBlockSaveBtn=document.getElementById('cellBlockSaveBtn');
   if(cellBlockSaveBtn){
     cellBlockSaveBtn.onclick=()=>{
@@ -1833,6 +2033,14 @@ async function loadArchive() {
 }
 
 function mergeArchiveIntoRooms() {
+  // 분할 조각 상태에서 재호출될 수 있으므로 원본(raw) 복원 후 병합
+  // (복원 없이 병합하면 applySplits가 _raw 백업을 조각 배열로 덮어써 이후 분할 수정이 화면에 반영 안 됨)
+  for (const r of rooms) {
+    for (const plat of SPLIT_PLATFORMS) {
+      const key = SPLIT_KEYMAP[plat];
+      if (r['_raw_' + key]) r[key] = r['_raw_' + key];
+    }
+  }
   const now = new Date(); now.setHours(0,0,0,0);
   const keyMap = { ab: 'bookings', bk: 'bkBookings', tr: 'trBookings', lv: 'lvBookings' };
   for (const room of rooms) {
@@ -2223,6 +2431,7 @@ async function init(){
   const t=today();curY=t.y;curM=t.m;
   await loadBlocks();
   await loadSplits();
+  await loadFeedPrev();
   await loadRooms();
   render();
   await Promise.all([triggerSync(), loadArchive()]);
