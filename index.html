@@ -500,6 +500,65 @@ thead { position: sticky; top: 0; z-index: 10; }
 .clean-5 { background: #ea580c; color: #fff; }
 .clean-6 { background: #c2410c; color: #fff; }
 
+/* ── 점유율 그래프 ── */
+.stats-chart-wrap { padding: 4px 16px 0; }
+.stats-chart {
+  display: flex; align-items: flex-end; gap: 4px;
+  height: 170px; border-bottom: 1px solid var(--border2);
+}
+.stats-chart-col {
+  flex: 1; height: 100%; min-width: 0;
+  display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+  cursor: pointer;
+}
+.stats-chart-val { font-size: 10px; color: var(--text2); margin-bottom: 3px; white-space: nowrap; }
+.stats-chart-col.sel .stats-chart-val { color: var(--navy); font-weight: 700; }
+.stats-chart-bar {
+  width: 70%; max-width: 32px; min-height: 2px;
+  background: #93c5fd; border-radius: 4px 4px 0 0; transition: background 0.15s;
+}
+.stats-chart-col.sel .stats-chart-bar { background: var(--navy); }
+.stats-chart-nodata { font-size: 9px; color: var(--text3); padding-bottom: 2px; }
+.stats-chart-xrow { display: flex; gap: 4px; margin-top: 5px; }
+.stats-chart-xlab {
+  flex: 1; min-width: 0; text-align: center; font-size: 9px; color: var(--text3);
+  white-space: nowrap; overflow: hidden;
+}
+.stats-chart-xlab.sel { color: var(--navy); font-weight: 700; }
+
+.stats-summary { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px 2px; }
+.stats-scard {
+  flex: 1 1 40%; min-width: 140px;
+  border: 1px solid var(--border2); border-radius: 8px;
+  padding: 9px 12px; background: var(--surface);
+}
+.stats-scard-label { font-size: 10px; color: var(--text3); margin-bottom: 2px; }
+.stats-scard-big { font-size: 17px; font-weight: 700; color: var(--navy); }
+.stats-scard-sub { font-size: 10px; color: var(--text2); margin-top: 1px; }
+
+.stats-roombars { padding: 12px 16px 0; }
+.stats-roombars-title { font-size: 12px; font-weight: 600; color: var(--navy); margin-bottom: 8px; }
+.stats-roombar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.stats-roombar-name {
+  width: 64px; flex-shrink: 0; font-size: 11px; color: var(--text2);
+  text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stats-roombar-track {
+  flex: 1; height: 13px; display: flex; gap: 2px;
+  background: var(--surface2); border-radius: 3px; overflow: hidden;
+}
+.stats-roombar-wkday { height: 100%; background: #93c5fd; }
+.stats-roombar-wkend { height: 100%; background: #1e3a8a; }
+.stats-roombar-val { width: 82px; flex-shrink: 0; font-size: 10px; color: var(--text2); white-space: nowrap; }
+.stats-chart-legend {
+  display: flex; gap: 14px; align-items: center;
+  padding: 6px 16px 2px; font-size: 10px; color: var(--text3);
+}
+.stats-legend-swatch {
+  width: 9px; height: 9px; border-radius: 2px;
+  display: inline-block; margin-right: 4px; vertical-align: -1px;
+}
+
 /* ── 반응형: 데스크탑 (768px 이상) ── */
 @media (min-width: 768px) {
   .stats-header { padding: 18px 40px 14px; }
@@ -518,6 +577,21 @@ thead { position: sticky; top: 0; z-index: 10; }
   .stats-fee-input { width: 90px; font-size: 13px; }
   .stats-fee-label { font-size: 12px; }
   .stats-vtab { font-size: 13px; padding: 6px 18px; }
+  .stats-chart-wrap, .stats-summary, .stats-roombars, .stats-chart-legend {
+    max-width: 1200px; margin-left: auto; margin-right: auto;
+    padding-left: 40px; padding-right: 40px;
+  }
+  .stats-chart { height: 210px; }
+  .stats-chart-bar { max-width: 40px; }
+  .stats-chart-val { font-size: 11px; }
+  .stats-chart-xlab { font-size: 11px; }
+  .stats-scard { flex: 1 1 0; }
+  .stats-scard-big { font-size: 20px; }
+  .stats-scard-label, .stats-scard-sub { font-size: 11px; }
+  .stats-roombar-name { width: 80px; font-size: 12px; }
+  .stats-roombar-val { width: 96px; font-size: 11px; }
+  .stats-roombar-track { height: 15px; }
+  .stats-chart-legend { font-size: 11px; }
 }
 </style>
 </head>
@@ -671,6 +745,7 @@ thead { position: sticky; top: 0; z-index: 10; }
     <span class="stats-fee-label">원</span>
   </div>
   <div class="stats-body">
+    <div id="statsChartArea"></div>
     <div class="stats-grid-wrap">
       <div id="statsGrid"></div>
     </div>
@@ -2021,6 +2096,7 @@ function copyUrl(url,btn){
 let archiveData = {};
 let statsPlatform = 'all';
 let statsView = 'occupancy';
+let statsSelMonth = null; // 그래프에서 선택된 달 {y, m} — 패널 열 때 이번 달로 초기화
 let cleanFeeShort = parseInt(localStorage.getItem('hana_clean_fee_short') || '25000', 10);
 let cleanFeeLong  = parseInt(localStorage.getItem('hana_clean_fee_long')  || '45000', 10);
 
@@ -2093,6 +2169,39 @@ function calcOccupancy(roomName, platform, year, month) {
   return { days, total, noData: false };
 }
 
+// calcOccupancy와 동일 기준(cin<=cur<cout)에 요일 분해 추가. 주말 밤 = 금(5)·토(6)
+function calcOccupancyDetail(roomName, platform, year, month) {
+  const total = daysIn(year, month);
+  let wkendTotal = 0;
+  for (let d = 1; d <= total; d++) {
+    const dow = new Date(year, month, d).getDay();
+    if (dow === 5 || dow === 6) wkendTotal++;
+  }
+  const roomData = archiveData[roomName];
+  const keys = platform === 'all' ? ['ab','bk','tr','lv'] : [platform];
+  if (!roomData || !keys.some(k => (roomData[k]||[]).length > 0)) {
+    return { nights: 0, wkendNights: 0, total, wkendTotal, noData: true };
+  }
+  let nights = 0, wkendNights = 0;
+  for (let d = 1; d <= total; d++) {
+    const cur = new Date(year, month, d);
+    let occupied = false;
+    outer: for (const key of keys) {
+      for (const bk of (roomData[key]||[])) {
+        const cin = new Date(bk.cinY, bk.cinM, bk.cinD);
+        const cout = new Date(bk.coutY, bk.coutM, bk.coutD);
+        if (cur >= cin && cur < cout) { occupied = true; break outer; }
+      }
+    }
+    if (occupied) {
+      nights++;
+      const dow = cur.getDay();
+      if (dow === 5 || dow === 6) wkendNights++;
+    }
+  }
+  return { nights, wkendNights, total, wkendTotal, noData: false };
+}
+
 function occClass(days, total) {
   if (!total) return 'no-data';
   const pct = days / total;
@@ -2145,6 +2254,7 @@ function fmtMan(n) {
 
 function renderCleaningStats() {
   const grid = document.getElementById('statsGrid');
+  document.getElementById('statsChartArea').innerHTML = '';
   const t = today();
   const months = [];
   for (let i = 11; i >= 0; i--) {
@@ -2234,6 +2344,7 @@ function renderStats() {
 
 function renderOccupancy() {
   const grid = document.getElementById('statsGrid');
+  const chartArea = document.getElementById('statsChartArea');
   const t = today();
   const months = [];
   for (let i = 11; i >= 0; i--) {
@@ -2249,9 +2360,127 @@ function renderOccupancy() {
     });
 
   if (!rooms.length || !hasData) {
+    chartArea.innerHTML = '';
     grid.innerHTML = `<div class="stats-empty"><strong>📊</strong>아직 데이터가 없어요.<br>Sync를 실행하면 이번 달부터 쌓이기 시작해요.</div>`;
     return;
   }
+
+  // ── 월별 그래프 + 선택 달 상세 ──
+  if (!statsSelMonth || !months.some(({y,m}) => y===statsSelMonth.y && m===statsSelMonth.m)) {
+    statsSelMonth = { y: t.y, m: t.m };
+  }
+  const mLabel = (y,m) => y!==t.y ? `${String(y).slice(2)}/${m+1}` : `${m+1}월`;
+
+  const monthStats = months.map(({y,m}) => {
+    const total = daysIn(y,m);
+    const perRoom = rooms.map(r => ({ room: r, d: calcOccupancyDetail(r.name, statsPlatform, y, m) }));
+    let nights=0, wkendNights=0, valid=0;
+    for (const {d} of perRoom) if (!d.noData) { nights+=d.nights; wkendNights+=d.wkendNights; valid++; }
+    const wkendTotal = perRoom.length ? perRoom[0].d.wkendTotal : 0;
+    const pct = valid ? Math.round(nights/(valid*total)*100) : null;
+    return { y, m, total, wkendTotal, perRoom, nights, wkendNights, valid, pct };
+  });
+
+  const withData = monthStats.filter(s=>s.pct!==null);
+  const maxPct = withData.length ? Math.max(...withData.map(s=>s.pct)) : 0;
+  const minPct = withData.length ? Math.min(...withData.map(s=>s.pct)) : 0;
+  // 동률이 많아도 라벨은 최고·최저 각 1개만 (0%가 여러 달이면 전부에 붙는 것 방지)
+  const maxIdx = monthStats.findIndex(s=>s.pct===maxPct);
+  const minIdx = monthStats.findIndex(s=>s.pct===minPct);
+  const selIdx = monthStats.findIndex(s=>s.y===statsSelMonth.y && s.m===statsSelMonth.m);
+
+  const chartCols = monthStats.map((s,i)=>{
+    const selCls = i===selIdx ? ' sel' : '';
+    if (s.pct===null) return `<div class="stats-chart-col${selCls}" data-mi="${i}"><div class="stats-chart-nodata">—</div></div>`;
+    const showVal = i===selIdx || i===maxIdx || i===minIdx;
+    return `<div class="stats-chart-col${selCls}" data-mi="${i}">
+      ${showVal ? `<div class="stats-chart-val">${s.pct}%</div>` : ''}
+      <div class="stats-chart-bar" style="height:${Math.max(1.5, s.pct*0.82)}%"></div>
+    </div>`;
+  }).join('');
+  const xlabs = monthStats.map((s,i)=>
+    `<div class="stats-chart-xlab${i===selIdx?' sel':''}">${mLabel(s.y,s.m)}</div>`
+  ).join('');
+
+  const sel = monthStats[selIdx];
+  let detailHTML = '';
+  if (sel && sel.pct !== null) {
+    const wkdayNights   = sel.nights - sel.wkendNights;
+    const wkdayTotalAll = sel.valid * (sel.total - sel.wkendTotal);
+    const wkendTotalAll = sel.valid * sel.wkendTotal;
+    const wkdayPct = wkdayTotalAll ? Math.round(wkdayNights/wkdayTotalAll*100) : 0;
+    const wkendPct = wkendTotalAll ? Math.round(sel.wkendNights/wkendTotalAll*100) : 0;
+    const avgNights = Math.round(sel.nights/sel.valid*10)/10;
+    const lbl = mLabel(sel.y, sel.m);
+    detailHTML = `
+    <div class="stats-summary">
+      <div class="stats-scard">
+        <div class="stats-scard-label">${lbl} 평균 점유율</div>
+        <div class="stats-scard-big">${sel.pct}%</div>
+        <div class="stats-scard-sub">객실 ${sel.valid}개 평균</div>
+      </div>
+      <div class="stats-scard">
+        <div class="stats-scard-label">객실당 평균 숙박</div>
+        <div class="stats-scard-big">${avgNights}박</div>
+        <div class="stats-scard-sub">${sel.total}일 중</div>
+      </div>
+      <div class="stats-scard">
+        <div class="stats-scard-label">총 숙박</div>
+        <div class="stats-scard-big">${sel.nights}박</div>
+        <div class="stats-scard-sub">주중 ${wkdayNights}박 · 주말 ${sel.wkendNights}박</div>
+      </div>
+      <div class="stats-scard">
+        <div class="stats-scard-label">주중 / 주말 점유율</div>
+        <div class="stats-scard-big">${wkdayPct}% / ${wkendPct}%</div>
+        <div class="stats-scard-sub">주말 = 금·토 밤</div>
+      </div>
+    </div>
+    <div class="stats-roombars">
+      <div class="stats-roombars-title">${lbl} 호실별 상세</div>
+      ${sel.perRoom.map(({room,d})=>{
+        const dot = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${room.color};margin-right:4px;vertical-align:1px"></span>`;
+        if (d.noData) return `<div class="stats-roombar-row">
+          <div class="stats-roombar-name">${dot}${room.name}</div>
+          <div class="stats-roombar-track"></div>
+          <div class="stats-roombar-val">—</div>
+        </div>`;
+        const pct = Math.round(d.nights/d.total*100);
+        const wkdayW = (d.nights-d.wkendNights)/d.total*100;
+        const wkendW = d.wkendNights/d.total*100;
+        return `<div class="stats-roombar-row">
+          <div class="stats-roombar-name">${dot}${room.name}</div>
+          <div class="stats-roombar-track">
+            ${wkdayW>0?`<div class="stats-roombar-wkday" style="width:${wkdayW}%"></div>`:''}
+            ${wkendW>0?`<div class="stats-roombar-wkend" style="width:${wkendW}%"></div>`:''}
+          </div>
+          <div class="stats-roombar-val">${d.nights}박 · ${pct}%</div>
+        </div>`;
+      }).join('')}
+      <div class="stats-chart-legend">
+        <span><span class="stats-legend-swatch" style="background:#93c5fd"></span>주중 (일~목 밤)</span>
+        <span><span class="stats-legend-swatch" style="background:#1e3a8a"></span>주말 (금·토 밤)</span>
+      </div>
+    </div>`;
+  } else {
+    detailHTML = `<div class="stats-summary"><div class="stats-scard">
+      <div class="stats-scard-label">${mLabel(statsSelMonth.y, statsSelMonth.m)}</div>
+      <div class="stats-scard-big">—</div>
+      <div class="stats-scard-sub">이 달은 아직 데이터가 없어요</div>
+    </div></div>`;
+  }
+
+  chartArea.innerHTML = `<div class="stats-chart-wrap">
+    <div class="stats-chart">${chartCols}</div>
+    <div class="stats-chart-xrow">${xlabs}</div>
+  </div>${detailHTML}`;
+
+  chartArea.querySelectorAll('.stats-chart-col').forEach(col=>{
+    col.onclick = () => {
+      const s = monthStats[+col.dataset.mi];
+      statsSelMonth = { y: s.y, m: s.m };
+      renderOccupancy();
+    };
+  });
 
   const thead = `<tr>
     <th class="stats-room-th">호실</th>
@@ -2310,6 +2539,7 @@ function renderOccupancy() {
 }
 
 function openStatsPanel() {
+  statsSelMonth = null; // 열 때마다 이번 달부터
   document.getElementById('statsPanel').classList.add('open');
   document.getElementById('feeShortInput').value = cleanFeeShort;
   document.getElementById('feeLongInput').value  = cleanFeeLong;
