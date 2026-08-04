@@ -200,8 +200,10 @@ thead { position: sticky; top: 0; z-index: 10; }
 .c-mix-out-abblk { background: linear-gradient(90deg,#e5503a 50%,#6b7280 50%); color:#fff; border-color:transparent !important; }
 /* 오버부킹 */
 .c-overbooking { background: #b91c1c; outline: 2px solid #f87171; outline-offset: -2px; border-radius: 5px; border-color: transparent !important; }
-/* 복합 */
-.c-dual { background: linear-gradient(180deg,#8b2e1e 50%,#1a3f7a 50%); border-color: transparent !important; }
+/* 복합 (여러 소스가 한 날에 겹침) — 실제 겹친 플랫폼 색으로 상하 분할 */
+.c-dual { background: linear-gradient(180deg,var(--d1,#8b2e1e) 50%,var(--d2,var(--d1,#8b2e1e)) 50%); border-color: transparent !important; }
+.d1-ab{--d1:#b85c00}.d1-bk{--d1:#1a3f7a}.d1-tr{--d1:#4a1278}.d1-lv{--d1:#0a6e8a}.d1-blk{--d1:#6b7280}.d1-bl{--d1:#2d333d}
+.d2-ab{--d2:#b85c00}.d2-bk{--d2:#1a3f7a}.d2-tr{--d2:#4a1278}.d2-lv{--d2:#0a6e8a}.d2-blk{--d2:#6b7280}.d2-bl{--d2:#2d333d}
 /* 오늘 링: 밝은 하늘색으로 잘 보이게 */
 .today-ring .cell-inner { outline: 2px solid #38bdf8; outline-offset: -2px; border-radius: 5px; }
 .cal-row { border-bottom: 1px solid var(--border); }
@@ -1226,14 +1228,16 @@ function cellClsAndLblBase(room,d,y,m){
       return{cls,lbl:bothLbl(outs[0],ins[0])};
     }
   }
-  const parts=[];
-  if(!abE) parts.push(`<span style="font-size:7px;color:var(--ab-out);">✈${io(ab)}</span>`);
-  if(!abBlkE) parts.push(`<span style="font-size:7px;color:#6b7280;">🚫</span>`);
-  if(!bkE) parts.push(`<span style="font-size:7px;color:var(--bk-out);">🏨${io(bk)}</span>`);
-  if(!trE) parts.push(`<span style="font-size:7px;color:var(--tr-out);">🌐${io(tr)}</span>`);
-  if(!lvE) parts.push(`<span style="font-size:7px;color:var(--lv-out);">🏡${io(lv)}</span>`);
-  if(!blE) parts.push('<span style="font-size:7px;">🔒</span>');
-  return{cls:'c-dual',lbl:parts.join('')};
+  const parts=[],srcs=[];
+  if(!abE){ parts.push(`<span style="font-size:7px;color:var(--ab-out);">✈${io(ab)}</span>`); srcs.push('ab'); }
+  if(!abBlkE){ parts.push(`<span style="font-size:7px;color:#6b7280;">🚫</span>`); srcs.push('blk'); }
+  if(!bkE){ parts.push(`<span style="font-size:7px;color:var(--bk-out);">🏨${io(bk)}</span>`); srcs.push('bk'); }
+  if(!trE){ parts.push(`<span style="font-size:7px;color:var(--tr-out);">🌐${io(tr)}</span>`); srcs.push('tr'); }
+  if(!lvE){ parts.push(`<span style="font-size:7px;color:var(--lv-out);">🏡${io(lv)}</span>`); srcs.push('lv'); }
+  if(!blE){ parts.push('<span style="font-size:7px;">🔒</span>'); srcs.push('bl'); }
+  // 배경은 실제로 겹친 소스 색으로 (하나면 단색, 둘 이상이면 위/아래 반반)
+  const dualCls='c-dual'+(srcs[0]?' d1-'+srcs[0]:'')+(srcs[1]?' d2-'+srcs[1]:'');
+  return{cls:dualCls,lbl:parts.join('')};
 }
 
 // ── in/out 카운트 ──
