@@ -1199,10 +1199,13 @@ function cellClsAndLblBase(room,d,y,m){
       if(abE&&bkE&&!trE&&lvE&&tr==='checkin') return{cls:'c-ab-co-tr-ci',lbl:bothLbl('✈','🌐')};
       if(abE&&bkE&&trE&&!lvE&&lv==='checkin') return{cls:'c-ab-co-lv-ci',lbl:bothLbl('✈','🏡')};
     }
-    if(!abE&&bkE&&trE&&lvE&&(ab==='checkout'||ab==='checkin')) return{cls:`c-ab-blk-${ab}`,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${io(ab)}</span>`};
-    if(abE&&!bkE&&trE&&lvE&&(bk==='checkout'||bk==='checkin')) return{cls:`c-bk-blk-${bk}`,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${io(bk)}</span>`};
-    if(abE&&bkE&&!trE&&lvE&&(tr==='checkout'||tr==='checkin')) return{cls:`c-tr-blk-${tr}`,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${io(tr)}</span>`};
-    if(abE&&bkE&&trE&&!lvE&&(lv==='checkout'||lv==='checkin')) return{cls:`c-lv-blk-${lv}`,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${io(lv)}</span>`};
+    // 블락이 이 날부터 시작(checkin)인데 플랫폼은 체크아웃 → 통짜 두톤 대신 아래 반반 셀로 넘긴다
+    // (수동 블락 🔒 은 이 분기 자체를 안 타서 원래 반반으로 나옴 — 🚫 도 같게 맞춤)
+    const solid=t=>!(abBlk==='checkin'&&t==='checkout');
+    if(!abE&&bkE&&trE&&lvE&&(ab==='checkout'||ab==='checkin')&&solid(ab)) return{cls:`c-ab-blk-${ab}`,lbl:`<span class="cell-icon">✈</span><span class="cell-txt">${io(ab)}</span>`};
+    if(abE&&!bkE&&trE&&lvE&&(bk==='checkout'||bk==='checkin')&&solid(bk)) return{cls:`c-bk-blk-${bk}`,lbl:`<span class="cell-icon">🏨</span><span class="cell-txt">${io(bk)}</span>`};
+    if(abE&&bkE&&!trE&&lvE&&(tr==='checkout'||tr==='checkin')&&solid(tr)) return{cls:`c-tr-blk-${tr}`,lbl:`<span class="cell-icon">🌐</span><span class="cell-txt">${io(tr)}</span>`};
+    if(abE&&bkE&&trE&&!lvE&&(lv==='checkout'||lv==='checkin')&&solid(lv)) return{cls:`c-lv-blk-${lv}`,lbl:`<span class="cell-icon">🏡</span><span class="cell-txt">${io(lv)}</span>`};
   }
   // 서로 다른 플랫폼(또는 수동 블락 시작)의 아웃+인 1:1 조합 → 에어비앤비 both와 같은 반반 셀, 아이콘만 플랫폼별
   // (기존에는 c-dual 잡동사니 셀로 표시 — 부킹닷컴 숙박중과 같은 남색이라 혼동됨)
