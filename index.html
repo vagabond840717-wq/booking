@@ -1089,6 +1089,11 @@ async function loadBookingsFromKV() {
       room.lvBookings=bks.lv||[];
       // 순수 피드 보관 (아카이브 병합 전) — 경계 은퇴·⚠ 판정은 이 배열만 본다
       room._feed_trBookings=room.trBookings.slice();
+      // 서버에서 새 피드를 받았으므로 직전 사이클의 원본 백업은 폐기한다.
+      // (남겨두면 바로 뒤 mergeArchiveIntoRooms() 첫머리의 복원이 새 피드를 옛 피드로 되돌려,
+      //  ↻ 를 눌러도 취소된 예약이 화면에서 사라지지 않는다. _raw_ 는 메모리에만 있어
+      //  페이지를 새로 열기 전까지 영구 고착됐다.)
+      for(const plat of SPLIT_PLATFORMS) delete room['_raw_'+SPLIT_KEYMAP[plat]];
     });
     // 은퇴 → ⚠ 판정 순서. 은퇴로 사라진 경계는 확인 대상에서도 빠져야 한다.
     if(retireCuts()) { _cutsRetired=true; saveCuts(); }
