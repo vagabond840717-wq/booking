@@ -1188,11 +1188,11 @@ function cellClsAndLblBase(room,d,y,m){
   if(abE&&abBlkE&&bkE&&trE&&lvE&&blE) return{cls:'c-empty',lbl:''};
   function io(ct){if(ct==='checkout')return '아웃';if(ct==='checkin')return '인';if(ct==='both')return '↕';return '';}
   // 아웃/인 반반 셀 공통 레이아웃: [아웃][아이콘][인]. 아웃·인 플랫폼이 다르면 아이콘 2개(아웃쪽 먼저)
-  function bothLbl(outIcon,inIcon){
+  function bothLbl(outIcon,inIcon,inTxt){
     let ic='';
     if(outIcon&&inIcon&&outIcon!==inIcon) ic=`<span style="font-size:7px;line-height:1;letter-spacing:-1px;">${outIcon}${inIcon}</span>`;
     else if(outIcon||inIcon) ic=`<span style="font-size:8px;line-height:1;">${outIcon||inIcon}</span>`;
-    return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">아웃</span>${ic}<span style="font-size:7px;line-height:1;">인</span></span>`;
+    return `<span style="display:flex;width:100%;justify-content:space-between;align-items:center;padding:0 1px;"><span style="font-size:7px;line-height:1;">아웃</span>${ic}<span style="font-size:7px;line-height:1;">${inTxt||'인'}</span></span>`;
   }
 
   if(!blE&&abE&&abBlkE&&bkE&&trE&&lvE) return{cls:'c-bl-block',lbl:'<span class="cell-icon">🔒</span>'};
@@ -1234,7 +1234,8 @@ function cellClsAndLblBase(room,d,y,m){
     if(bl==='start')ins.push('🔒');
     if(outs.length===1&&ins.length===1&&outs[0]!==ins[0]){
       const cls=ins[0]==='🔒'?'c-mix-out-bl':ins[0]==='🚫'?'c-mix-out-abblk':'c-mix-both';
-      return{cls,lbl:bothLbl(outs[0],ins[0])};
+      // 수동 블락(🔒)만 오른쪽 글자를 '블락'으로. 취소잔여 블락(🚫)은 기존대로 '인' 유지
+      return{cls,lbl:bothLbl(outs[0],ins[0],ins[0]==='🔒'?'블락':'')};
     }
   }
   // 소스별 조각 — 배경이 소스 색을 담당하므로 글자는 흰색 (다른 반반 셀과 동일)
@@ -1687,6 +1688,11 @@ async function openDetail(ri,y,m,d){
   }
   // ── 셀 클릭 블락 추가/수정/해제 ──
   const dstr=n=>String(n).padStart(2,'0');
+  // 그날 '밤'을 실제로 차지하는 예약이 있는지. 달력은 날이 아니라 밤 단위라
+  // 오전에 나간 손님은 그날 밤을 쓰지 않는다 → 체크아웃만 있는 날은 블락할 수 있다.
+  // ⚠ 에어비앤비 취소잔여 블락(ab-block)만 예외: cellTypeForBlock이 cout까지 '막힌 밤'으로 보므로
+  //    findAllIn에 걸렸다는 것만으로 이미 밤이 찬 것이다 (cout===그날이어도 빈 밤이 아니다)
+  const nightTaken=allBks.some(b=>b.platform==='ab-block'||!(b.coutY===y&&b.coutM===m&&b.coutD===d));
   let blockHtml='';
   if(manualBl){
     blockHtml=`<div class="d-section-title" style="margin-top:4px;">🔒 수동 블락</div>
@@ -1701,7 +1707,7 @@ async function openDetail(ri,y,m,d){
         <button class="block-add-btn" id="cellBlockDelBtn" style="flex:1;background:var(--surface2);color:#e5503a;">블락 해제</button>
       </div>
     </div>`;
-  } else if(!allBks.length){
+  } else if(!nightTaken){
     blockHtml=`<div class="d-section-title" style="margin-top:4px;">🔒 수동 블락</div>
     <div class="bk-info-box" style="border-color:rgba(55,65,81,0.3);">
       <div class="block-form-row" style="margin-bottom:6px;">
