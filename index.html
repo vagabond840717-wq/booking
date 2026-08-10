@@ -812,10 +812,42 @@ async function loadRooms() {
   }catch(e){rooms=[];}
 }
 
+// ── 공유 목록 저장: 서버 최신본 위에 '내 변경만' 얹는다 ──
+// KV의 manual_blocks·tr_cuts는 호실 구분 없이 배열 하나다. 예전에는 저장할 때
+// "이 기기가 들고 있는 배열 전체"로 통째 덮어썼다. 그래서
+//   · 낡은 세션이 뒤늦게 저장하면 다른 기기가 추가한 항목이 사라지고 (#22)
+//   · 로드에 실패해 빈 목록을 들고 있는 상태에서 하나만 추가하면 나머지가 전멸했다 (#26)
+// ⚠ 서버를 못 읽으면 아예 쓰지 않는다. 남의 기록을 지우느니 내 저장을 실패시키는 게 낫다.
+//    (실패는 토스트로 알리고 화면의 낙관적 변경도 되돌린다 — 저장 안 된 걸 저장된 것처럼 두지 않는다)
+async function saveListMerged(key, lsKey, apply){
+  let server=null;
+  try{
+    const resp=await fetch(`${PROXY}/extra?key=${encodeURIComponent(key)}`);
+    if(resp.ok){ const d=await resp.json(); if(Array.isArray(d)) server=d; }
+  }catch(e){}
+  if(!server){ showToast('서버에 저장하지 못했어요 — 연결 확인 후 다시 해주세요'); return null; }
+  const merged=apply(server.slice());
+  try{
+    const resp=await fetch(`${PROXY}/extra`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,data:merged})});
+    if(!resp.ok) throw new Error('save failed');
+  }catch(e){ showToast('서버에 저장하지 못했어요 — 연결 확인 후 다시 해주세요'); return null; }
+  // 서버에 들어간 뒤에만 로컬을 갱신한다 → localStorage는 항상 서버를 따라간다(낡은 폴백 방지)
+  try{ localStorage.setItem(lsKey, JSON.stringify(merged)); }catch(e){}
+  return merged;
+}
+
 // ── BLOCKS ──
-function saveBlocks() {
-  try{localStorage.setItem('hana_blocks',JSON.stringify(manualBlocks));}catch(e){}
-  fetch(`${PROXY}/extra`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'manual_blocks',data:manualBlocks})}).catch(()=>{});
+// 블락 식별자: 호실 + 시작일 + 종료일 (별도 id가 없어 날짜 범위로 구분)
+function blockId(b){ return `${b.roomName}|${b.startY}-${b.startM}-${b.startD}|${b.endY}-${b.endM}-${b.endD}`; }
+// op = {type:'add',block} | {type:'replace',oldBlock,block} | {type:'remove',block}
+async function saveBlocksMerged(op){
+  const merged=await saveListMerged('manual_blocks','hana_blocks',list=>{
+    if(op.type!=='add'){ const gone=blockId(op.oldBlock||op.block); list=list.filter(b=>blockId(b)!==gone); }
+    if(op.type!=='remove') list.push(op.block);
+    return list;
+  });
+  if(merged) manualBlocks=merged;
+  return merged;
 }
 async function loadBlocks() {
   try{
@@ -834,22 +866,40 @@ async function loadBlocks() {
 function dnum(p){ return p.y*10000+(p.m+1)*100+p.d; }  // 날짜 비교용 정수
 function cutId(c){ return `${c.roomName}|${dnum(c)}`; }
 
-function saveCuts(){
-  try{localStorage.setItem('hana_cuts',JSON.stringify(trCuts));}catch(e){}
-  fetch(`${PROXY}/extra`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'tr_cuts',data:trCuts})}).catch(()=>{});
+// op = {type:'add',cut} | {type:'remove',roomName,p}
+async function saveCutsMerged(op){
+  const merged=await saveListMerged('tr_cuts','hana_cuts',list=>{
+    if(op.type==='add'){
+      if(!list.some(c=>cutId(c)===cutId(op.cut))) list.push(op.cut);
+      return list;
+    }
+    const gone=dnum(op.p);
+    return list.filter(c=>!(c.roomName===op.roomName&&dnum(c)===gone));
+  });
+  if(merged) trCuts=merged;
+  return merged;
 }
 async function loadCuts(){
-  let loaded=null;
+  let ok=false, loaded=null;
   try{
     const resp=await fetch(`${PROXY}/extra?key=tr_cuts`);
-    if(resp.ok){const d=await resp.json();if(Array.isArray(d))loaded=d;}
+    if(resp.ok){const d=await resp.json();if(Array.isArray(d)){loaded=d;ok=true;}}
   }catch(e){}
-  if(!loaded){
+  if(!ok){
+    // 서버를 못 읽었다. 화면이라도 채우게 로컬 사본을 쓰되, 이 상태로는 절대 저장하지 않는다.
+    // (저장은 saveListMerged가 매번 서버를 다시 읽고, 못 읽으면 쓰지 않는다 — #26)
     try{const d=JSON.parse(localStorage.getItem('hana_cuts')||'null');if(Array.isArray(d))loaded=d;}catch(e){}
+    trCuts=loaded||[];
+    return;
   }
-  if(loaded&&loaded.length){trCuts=loaded;return;}
-  trCuts=await migrateSplitsToCuts();   // 예전 분할 정의에서 경계 날짜만 승계 (1회)
-  if(trCuts.length) saveCuts();
+  if(loaded.length){trCuts=loaded;return;}
+  // 서버가 확실히 비어 있을 때만 구버전에서 이관한다 (읽기 실패를 '비어 있음'으로 오해하면 안 됨)
+  const migrated=await migrateSplitsToCuts();   // 예전 분할 정의에서 경계 날짜만 승계 (1회)
+  trCuts=migrated;
+  if(migrated.length){
+    try{localStorage.setItem('hana_cuts',JSON.stringify(migrated));}catch(e){}
+    fetch(`${PROXY}/extra`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'tr_cuts',data:migrated})}).catch(()=>{});
+  }
 }
 // 구버전 tr_splits(기간+경계) → 경계 날짜만 뽑아 이관
 async function migrateSplitsToCuts(){
@@ -1013,8 +1063,22 @@ function suggestCuts(roomName,b){
 }
 
 // 경계 추가/삭제 후 저장 + 즉시 화면 반영
-function commitCuts(){
-  saveCuts(); saveFeedPrev(); reapplyCuts(); render(); attachCellClicks(); syncNotifyBadge();
+// op = {type:'add',cut} | {type:'remove',roomName,p} | null (경계는 그대로, ⚠ 확인만 처리)
+// 변경은 여기서 직접 한다 — 실패 시 정확히 되돌리려면 이전 상태를 알아야 하기 때문.
+// 화면을 먼저 그려 즉시 반응하게 하고, 서버 병합이 끝나면 다시 그린다(다른 기기 것도 함께 반영).
+async function commitCuts(op){
+  const before=trCuts.slice();
+  if(op){
+    if(op.type==='add') addCut(op.cut.roomName,op.cut,op.cut.platform);
+    else removeCut(op.roomName,op.p);
+  }
+  const redraw=()=>{ saveFeedPrev(); reapplyCuts(); render(); attachCellClicks(); syncNotifyBadge(); };
+  redraw();
+  if(!op) return true;
+  const merged=await saveCutsMerged(op);
+  if(!merged) trCuts=before;   // 서버에 못 썼다 → 화면도 원래대로 (안 된 걸 된 것처럼 두지 않는다)
+  redraw();
+  return !!merged;
 }
 
 function blockTypeFor(roomName,y,m,d) {
@@ -1774,34 +1838,36 @@ async function openDetail(ri,y,m,d){
   document.getElementById('detailPanel').classList.add('open');
   // 경계 카드 버튼
   const cutAddBtn=document.getElementById('cutAddBtn');
-  if(cutAddBtn) cutAddBtn.onclick=()=>{
-    addCut(r.name,here); clearCutAlert(r.name,here); commitCuts();
-    showToast('경계를 기억해 뒀어요 ✂');
+  if(cutAddBtn) cutAddBtn.onclick=async()=>{
+    clearCutAlert(r.name,here);
+    if(await commitCuts({type:'add',cut:{roomName:r.name,platform:'tr',y:here.y,m:here.m,d:here.d}}))
+      showToast('경계를 기억해 뒀어요 ✂');
     openDetail(ri,y,m,d);
   };
   const cutDropBtn=document.getElementById('cutDropBtn');
-  if(cutDropBtn) cutDropBtn.onclick=()=>{
-    removeCut(r.name,here); clearCutAlert(r.name,here); commitCuts();
-    showToast('경계를 지웠어요');
+  if(cutDropBtn) cutDropBtn.onclick=async()=>{
+    clearCutAlert(r.name,here);
+    if(await commitCuts({type:'remove',roomName:r.name,p:here})) showToast('경계를 지웠어요');
     openDetail(ri,y,m,d);
   };
   const cutKeepBtn=document.getElementById('cutKeepBtn');
-  if(cutKeepBtn) cutKeepBtn.onclick=()=>{
-    clearCutAlert(r.name,here); commitCuts();
+  if(cutKeepBtn) cutKeepBtn.onclick=async()=>{
+    clearCutAlert(r.name,here); await commitCuts(null);
     showToast('확인했어요 ✔');
     openDetail(ri,y,m,d);
   };
   document.querySelectorAll('#detailBody .cut-sug').forEach(btn=>{
-    btn.onclick=()=>{
+    btn.onclick=async()=>{
       const p={y:+btn.dataset.y,m:+btn.dataset.m,d:+btn.dataset.d};
-      addCut(r.name,p); clearCutAlert(r.name,p); commitCuts();
-      showToast(`${dateStr(p.y,p.m,p.d)} 경계를 기억해 뒀어요 ✂`);
+      clearCutAlert(r.name,p);
+      if(await commitCuts({type:'add',cut:{roomName:r.name,platform:'tr',y:p.y,m:p.m,d:p.d}}))
+        showToast(`${dateStr(p.y,p.m,p.d)} 경계를 기억해 뒀어요 ✂`);
       openDetail(ri,y,m,d);
     };
   });
   const cellBlockSaveBtn=document.getElementById('cellBlockSaveBtn');
   if(cellBlockSaveBtn){
-    cellBlockSaveBtn.onclick=()=>{
+    cellBlockSaveBtn.onclick=async()=>{
       const startStr=document.getElementById('cellBlockStart').value;
       const endStr=document.getElementById('cellBlockEnd').value;
       const reason=document.getElementById('cellBlockReason').value.trim();
@@ -1810,22 +1876,28 @@ async function openDetail(ri,y,m,d){
       const[ey,em,ed]=endStr.split('-').map(Number);
       if(new Date(sy,sm-1,sd)>new Date(ey,em-1,ed)){showToast('종료일이 시작일보다 앞서요');return;}
       const newBlock={roomName:r.name,startY:sy,startM:sm-1,startD:sd,endY:ey,endM:em-1,endD:ed,reason};
-      if(manualBl){
-        manualBlocks[manualBlocks.indexOf(manualBl)]=newBlock;
-        showToast('블락 수정됐어요 🔒');
-      } else {
-        manualBlocks.push(newBlock);
-        showToast('블락 추가됐어요 🔒');
-      }
-      saveBlocks();render();attachCellClicks();openDetail(ri,y,m,d);
+      const before=manualBlocks.slice();
+      if(manualBl) manualBlocks[manualBlocks.indexOf(manualBl)]=newBlock;
+      else manualBlocks.push(newBlock);
+      render();attachCellClicks();          // 먼저 반영해 즉시 반응 (실패하면 아래에서 되돌림)
+      const ok=await saveBlocksMerged(manualBl?{type:'replace',oldBlock:manualBl,block:newBlock}:{type:'add',block:newBlock});
+      if(!ok) manualBlocks=before;
+      render();attachCellClicks();
+      if(ok) showToast(manualBl?'블락 수정됐어요 🔒':'블락 추가됐어요 🔒');
+      openDetail(ri,y,m,d);
     };
   }
   const cellBlockDelBtn=document.getElementById('cellBlockDelBtn');
   if(cellBlockDelBtn){
-    cellBlockDelBtn.onclick=()=>{
+    cellBlockDelBtn.onclick=async()=>{
+      const before=manualBlocks.slice();
       const bidx=manualBlocks.indexOf(manualBl);
       if(bidx>-1) manualBlocks.splice(bidx,1);
-      saveBlocks();render();attachCellClicks();showToast('블락 해제됨');
+      render();attachCellClicks();
+      if(!await saveBlocksMerged({type:'remove',block:manualBl})){
+        manualBlocks=before; render(); attachCellClicks(); return;   // 못 지웠으면 화면도 원래대로
+      }
+      render();attachCellClicks();showToast('블락 해제됨');
       document.getElementById('detailPanel').classList.remove('open');
     };
   }
@@ -2663,14 +2735,14 @@ function cutAlertCards() {
 }
 function bindCutAlertBtns() {
   document.querySelectorAll('#notifyEventList .cut-alert-btn').forEach(btn => {
-    btn.onclick = () => {
+    btn.onclick = async () => {
       const a = cutAlerts[+btn.dataset.i];
       if (!a) return;
       const p = { y:a.y, m:a.m, d:a.d };
-      if (btn.dataset.act === 'drop') removeCut(a.roomName, p);
+      const drop = btn.dataset.act === 'drop';
       clearCutAlert(a.roomName, p);
-      commitCuts();
-      showToast(btn.dataset.act === 'drop' ? '경계를 지웠어요' : '확인했어요 ✔');
+      const ok = await commitCuts(drop ? {type:'remove',roomName:a.roomName,p} : null);
+      if (ok) showToast(drop ? '경계를 지웠어요' : '확인했어요 ✔');
       renderNotifyEvents();
     };
   });
