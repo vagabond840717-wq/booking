@@ -2013,7 +2013,11 @@ function renderExportUrls(){
   ];
   el.innerHTML=platforms.map(({key,label})=>{
     const rows=rooms.map(r=>{
-      const url=`${ICAL_BASE}/${encodeURIComponent(r.name)}`;
+      // 채널마다 다른 주소를 준다 — 끝의 /<채널키>가 그 채널 자기 예약을 빼고 내보내라는 뜻.
+      // 자기 예약을 돌려주면 채널이 "남의 달력에서 온 블락"으로 인식해 자기 iCal에서 빼버린다.
+      // (2026-08-06 부킹닷컴 402·603호 실제 발생 — 그날 올해 부킹 예약 2건이 100% 사라졌다)
+      // ⚠ 여기서 /${key}를 빼면 옛 통합 주소가 되어 그 사고가 그대로 재발한다.
+      const url=`${ICAL_BASE}/${encodeURIComponent(r.name)}/${key}`;
       return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 8px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);">
         <div class="room-dot" style="background:${r.color};display:inline-block;flex-shrink:0;"></div>
         <div style="font-size:12px;font-weight:600;color:var(--text);margin-right:6px;">${r.name}</div>
