@@ -2163,6 +2163,27 @@ function occClass(days, total) {
   return 'occ-8';
 }
 
+// 판매 미오픈 구간('꼬리')인가 — 청소 횟수에서 뺄 것.
+// 부킹·트립은 실제 예약과 '아직 안 연 기간'을 똑같은 제목으로 보낸다
+// (bk 'CLOSED - Not available' / tr 'RoomStatus Fully booked'). 구분할 표식이 없다.
+// 사장님은 모든 채널을 **당일 기준 3개월씩만** 연다 (2026-09-06 확인) → 그 밖은 예약일 수 없다.
+// 두 가지 중 하나만 걸려도 꼬리로 본다:
+//   ① 31박 이상        — 실측 2026-09-05: 진짜 예약 최장 20박 / 꼬리 최단 155박. 사이가 텅 비어 있다
+//   ② 오늘+6개월 이후 시작 — 3개월 정책에 6개월이면 넉넉한 여유. 채널이 정책보다 더 여는 전례가 있다
+// ⚠ 세는 단계에서만 거른다. 아카이브 저장·달력 표시는 건드리지 않는다 —
+//    잘못 판단해도 숫자만 틀리고 기록은 남아 되돌릴 수 있다.
+//    (꼬리 구간은 실제로 못 파는 날이라 달력에 막혀 보이는 게 맞다)
+const TAIL_MIN_NIGHTS = 31;
+const TAIL_MONTHS_AHEAD = 6;
+function isOpenTail(b) {
+  const cin = new Date(b.cinY, b.cinM, b.cinD);
+  const nights = Math.round((new Date(b.coutY, b.coutM, b.coutD) - cin) / 86400000);
+  if (nights >= TAIL_MIN_NIGHTS) return true;
+  const limit = new Date(); limit.setHours(0,0,0,0);
+  limit.setMonth(limit.getMonth() + TAIL_MONTHS_AHEAD);
+  return cin >= limit;
+}
+
 function calcCleanings(roomName, platform, year, month) {
   const roomData = archiveData[roomName];
   if (!roomData) return { short: 0, long: 0, noData: true };
@@ -2171,6 +2192,7 @@ function calcCleanings(roomName, platform, year, month) {
   let shortCnt = 0, longCnt = 0;
   for (const key of keys) {
     for (const bk of (roomData[key]||[])) {
+      if (isOpenTail(bk)) continue;                  // 판매 미오픈 구간은 청소가 아니다
       if (bk.coutY === year && bk.coutM === month) {
         const nights = Math.round(
           (new Date(bk.coutY, bk.coutM, bk.coutD) - new Date(bk.cinY, bk.cinM, bk.cinD))
