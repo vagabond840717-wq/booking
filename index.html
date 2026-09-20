@@ -2069,8 +2069,20 @@ function mergeArchiveIntoRooms() {
   for (const room of rooms) {
     const rd = archiveData[room.name];
     if (!rd) continue;
+    // 채널 간 메아리 걸러내기 (2026-09-21)
+    // 부킹·트립·리브가 iCal 로 보내는 건 '예약'이 아니라 '못 파는 날'이다. 우리가 에어비앤비 예약을
+    // 그 채널로 내보내면 채널이 우리 퇴실일까지 막고, 그 막음이 다시 iCal 로 돌아온다.
+    // 그래서 메아리는 **끝 날짜가 원 예약과 반드시 같다** (시작은 채널이 이웃 블록과 뭉쳐 달라진다).
+    // 한 방에 한 팀이므로 두 채널이 같은 날 퇴실할 수 없다 → 진짜를 지울 일이 없다.
+    // 실측 601호: 진짜 ab 9/18~9/20 옆에 bk 9/17~9/20 · tr 9/9~9/20 이 같이 그려져
+    //   퇴실 도장이 한 칸에 3개 찍혔다. 워커는 '오늘 퇴실'만 막으므로 지난 날짜는 여기서 막는다.
+    // ⚠ '겹치기만 하면 제외'로 넓히지 말 것 — 트립은 이웃 블록을 뭉쳐 보내므로(뭉침),
+    //   진짜 트립 손님이 낀 덩어리까지 통째로 사라진다 (402호 tr 7/9~7/24 등 실측).
+    const endMs = b => new Date(b.coutY, b.coutM, b.coutD).getTime();
+    const abEnds = new Set([...(room.bookings || []), ...(rd.ab || [])].map(endMs));
     for (const [src, dest] of Object.entries(keyMap)) {
-      const past = (rd[src] || []).filter(b => new Date(b.coutY, b.coutM, b.coutD) < now);
+      const past = (rd[src] || []).filter(b => new Date(b.coutY, b.coutM, b.coutD) < now
+        && !(src !== 'ab' && abEnds.has(endMs(b))));
       if (!past.length) continue;
       const existing = new Set((room[dest] || []).map(b => `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`));
       for (const b of past) {
