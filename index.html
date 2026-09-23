@@ -775,6 +775,7 @@ let dragSrcIdx = null;
 let _serverUnread = 0;      // 서버 알림함의 미확인 개수 (배지 계산용)
 
 const SPLIT_PLATFORMS = ['tr'];  // 분할 대상 플랫폼 (현재 Trip.com만)
+const TRIM_PLATFORMS  = ['bk','tr'];  // 투숙 중 앞잘림이 실측된 채널 (워커 UNTRIM_PLATFORMS 와 같다)
 
 function today() { const d = new Date(); return {y:d.getFullYear(),m:d.getMonth(),d:d.getDate()}; }
 function daysIn(y,m) { return new Date(y,m+1,0).getDate(); }
@@ -2089,17 +2090,26 @@ function mergeArchiveIntoRooms() {
         const uid = `${b.cinY}_${b.cinM}_${b.cinD}_${b.coutY}_${b.coutM}_${b.coutD}`;
         if (!existing.has(uid)) { room[dest].push(b); existing.add(uid); }
       }
-      // 부분 스냅샷 제거: 같은 플랫폼에서 다른 예약 범위 안에 완전히 포함되면 같은 숙박의 옛 버전
-      // (아카이브에 같은 숙박이 여러 장 쌓이는 경우 정리 — 워커에도 같은 정리 있음)
-      const span = b0 => [new Date(b0.cinY,b0.cinM,b0.cinD).getTime(), new Date(b0.coutY,b0.coutM,b0.coutD).getTime()];
-      room[dest] = room[dest].filter(b => {
-        const [bs, be] = span(b);
-        return !room[dest].some(o => {
-          if (o === b) return false;
-          const [os, oe] = span(o);
-          return os <= bs && oe >= be && (os < bs || oe > be);
+      // 앞잘림 잔재 제거 — 트립·부킹이 투숙 중에 시작일을 당겨 보내 같은 숙박이 여러 장 쌓인다.
+      // 지문이 뚜렷하다: **끝날짜는 그대로 두고 시작만 늦어진다.** 딱 그 모양만 지운다.
+      //
+      // ⛔ 옛 규칙("더 넓은 것 안에 완전히 포함되면 지움")으로 되돌리지 말 것 — 진짜를 지운다.
+      //    #32 에 적힌 "앱의 포함 관계 정리가 넓은 쪽(가짜)을 남기고 진짜를 지웠다" 가 이 줄이다.
+      //    2026-09-23 실측: 601호 부킹 7개월짜리 '안 파는 기간' 하나가 그 안의 진짜 예약 9건을,
+      //    603호는 진짜 10/02~10/13 을 옛 모양 10/02~10/17 이 삼키고 있었다.
+      // ⛔ ab 는 앞을 자르지 않는다 → 아예 적용하지 않는다
+      // ⚠ 워커 worker.js 아카이브 병합과 **같은 규칙**이다. 바꾸면 두 곳 동시 수정 (#2)
+      if (TRIM_PLATFORMS.includes(src)) {
+        const span = b0 => [new Date(b0.cinY,b0.cinM,b0.cinD).getTime(), new Date(b0.coutY,b0.coutM,b0.coutD).getTime()];
+        room[dest] = room[dest].filter(b => {
+          const [bs, be] = span(b);
+          return !room[dest].some(o => {
+            if (o === b) return false;
+            const [os, oe] = span(o);
+            return oe === be && os < bs;
+          });
         });
-      });
+      }
     }
   }
   applyCutsAll();
