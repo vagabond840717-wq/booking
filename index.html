@@ -300,6 +300,8 @@ thead { position: sticky; top: 0; z-index: 10; }
 .pw-edit-row { display: flex; gap: 8px; align-items: center; }
 .pw-input { flex: 1; padding: 10px 12px; font-size: 18px; letter-spacing: 0.2em; background: var(--surface); border: 1px solid var(--navy); border-radius: var(--r); color: var(--navy); font-family: 'DM Mono', monospace; outline: none; }
 .pw-save-btn { padding: 10px 16px; font-size: 13px; font-weight: 600; background: var(--navy); color: #fff; border: none; border-radius: var(--r); cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.pw-who { font-size: 11px; font-weight: 600; color: var(--text2); }
+.pw-auto { font-size: 11px; color: var(--text3); }
 .pw-history-title { font-size: 11px; color: var(--text3); margin: 10px 0 6px; }
 .pw-history-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 11px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 4px; }
 .pw-history-pw { font-family: 'DM Mono', monospace; color: var(--text2); font-size: 14px; letter-spacing: 0.1em; }
@@ -1906,25 +1908,38 @@ async function openDetail(ri,y,m,d){
     :[`${r.name}|${dateStr(y,m,d)}`];   // 예약 없는 날 — 예전처럼 날짜 서랍 (목록·📝 없음)
   const firstBk=allBks[0];
   const pwKey=firstBk?drawerKey(r.name,firstBk):blkEntry?drawerKey(r.name,blkEntry):memoKeys[0];
-  await Promise.all([...new Set([pwKey,...memoKeys])].map(k=>loadExtra(k)));
-  const extra=getExtra(pwKey);
-  const curPw=extra.passwords&&extra.passwords.length?extra.passwords[0]:null;
-  let pwHtml=`<div class="d-section-title" style="margin-top:4px;">🔑 도어락 비밀번호</div>
-  <div class="pw-current-box">
+  // 비번 상자 (airbnb-auto-pw) — 교대 날(나가는 예약·들어오는 예약의 서랍이 다름)엔 두 상자를 같은 크기로.
+  // 그 밖의 날은 지금처럼 한 상자(첫 예약 서랍). 에어비앤비 예약은 손 입력이 없으면 전화 끝 4자리(ph)를 보여준다
+  const outBk=allBks.find(b=>b.coutY===y&&b.coutM===m&&b.coutD===d);
+  const inBk=allBks.find(b=>b.cinY===y&&b.cinM===m&&b.cinD===d);
+  const pwBoxes=outBk&&inBk&&drawerKey(r.name,outBk)!==drawerKey(r.name,inBk)
+    ?[{key:drawerKey(r.name,outBk),bk:outBk,who:'나가는 손님'},{key:drawerKey(r.name,inBk),bk:inBk,who:'들어오는 손님'}]
+    :[{key:pwKey,bk:firstBk||null,who:''}];
+  await Promise.all([...new Set([pwKey,...pwBoxes.map(b=>b.key),...memoKeys])].map(k=>loadExtra(k)));
+  let pwHtml=`<div class="d-section-title" style="margin-top:4px;">🔑 도어락 비밀번호</div>`;
+  pwBoxes.forEach((bx,pi)=>{
+    const pws=getExtra(bx.key).passwords||[];
+    const curPw=pws.length?pws[0]:null;
+    const ph=bx.bk&&bx.bk.ph?bx.bk.ph:'';
+    const big=curPw?curPw.pw:ph;
+    pwHtml+=`<div class="pw-current-box"${pi?' style="margin-top:8px;"':''}>
+    ${bx.who?`<div class="pw-who">${MEMO_ICON[MEMO_CH[bx.bk.platform]]||''} ${bx.who}</div>`:''}
     <div class="pw-display-row">
-      <div class="pw-display${curPw?'':' empty'}">${curPw?curPw.pw:'비밀번호 없음'}</div>
-      ${curPw?'<button class="pw-edit-btn" id="pwDelBtn" style="color:#e06060;border-color:rgba(224,96,96,0.3);">삭제</button>':''}
-      <button class="pw-edit-btn" id="pwEditBtn">수정</button>
+      <div class="pw-display${big?'':' empty'}">${big||'비밀번호 없음'}</div>
+      ${curPw?`<button class="pw-edit-btn pw-box-del" data-pi="${pi}" style="color:#e06060;border-color:rgba(224,96,96,0.3);">삭제</button>`:''}
+      <button class="pw-edit-btn pw-box-edit" data-pi="${pi}">수정</button>
     </div>
-    <div class="pw-edit-row" id="pwEditRow" style="display:none;">
-      <input class="pw-input" id="pwInput" placeholder="새 비밀번호 입력" maxlength="20">
-      <button class="pw-save-btn" id="pwSaveBtn">저장</button>
+    ${ph?`<div class="pw-auto">✈ 전화번호 끝 4자리${curPw?': '+ph:' (자동)'}</div>`:''}
+    <div class="pw-edit-row" id="pwEditRow_${pi}" style="display:none;">
+      <input class="pw-input" id="pwInput_${pi}" data-pi="${pi}" placeholder="새 비밀번호 입력" maxlength="20">
+      <button class="pw-save-btn pw-box-save" data-pi="${pi}">저장</button>
     </div>`;
-  if(extra.passwords&&extra.passwords.length>1){
-    pwHtml+=`<div class="pw-history-title">이전 비밀번호</div>`;
-    extra.passwords.slice(1).forEach((p,i)=>{pwHtml+=`<div class="pw-history-item"><span class="pw-history-pw">${p.pw}</span><div style="display:flex;align-items:center;gap:8px;"><span class="pw-history-meta">${p.date}</span><button class="pw-hist-del" data-idx="${i+1}">✕</button></div></div>`;});
-  }
-  pwHtml+=`</div>`;
+    if(pws.length>1){
+      pwHtml+=`<div class="pw-history-title">이전 비밀번호</div>`;
+      pws.slice(1).forEach((p,i)=>{pwHtml+=`<div class="pw-history-item"><span class="pw-history-pw">${p.pw}</span><div style="display:flex;align-items:center;gap:8px;"><span class="pw-history-meta">${p.date}</span><button class="pw-hist-del" data-pi="${pi}" data-idx="${i+1}">✕</button></div></div>`;});
+    }
+    pwHtml+=`</div>`;
+  });
   let memoHtml='';
   const multiMemo=memoKeys.length>1;
   memoKeys.forEach((key,ki)=>{
@@ -2008,26 +2023,35 @@ async function openDetail(ri,y,m,d){
       document.getElementById('detailPanel').classList.remove('open');
     };
   }
-  document.getElementById('pwEditBtn').onclick=()=>{const row=document.getElementById('pwEditRow');row.style.display=row.style.display==='none'?'flex':'none';if(row.style.display==='flex')document.getElementById('pwInput').focus();};
-  document.getElementById('pwSaveBtn').onclick=()=>{
-    const val=document.getElementById('pwInput').value.trim();if(!val)return;
-    const ex=getExtra(pwKey);if(!ex.passwords)ex.passwords=[];
-    ex.passwords.unshift({pw:val,date:nowStr()});if(ex.passwords.length>10)ex.passwords=ex.passwords.slice(0,10);
-    setExtra(pwKey,ex);showToast('비밀번호 저장됨 🔑');openDetail(ri,y,m,d);
-  };
-  // 삭제 — 청소앱과 같다: 지금 번호를 지우면 바로 전 번호가 지금 번호로 올라온다
-  const pwDelBtn=document.getElementById('pwDelBtn');
-  if(pwDelBtn) pwDelBtn.onclick=()=>{
-    const ex=getExtra(pwKey);if(!ex.passwords||!ex.passwords.length)return;
-    ex.passwords.shift();setExtra(pwKey,ex);showToast('비밀번호 삭제됨');openDetail(ri,y,m,d);
-  };
-  document.querySelectorAll('#detailBody .pw-hist-del').forEach(btn=>{
+  // 비번 버튼은 상자마다 자기 서랍에 쓴다 (data-pi = pwBoxes 순번)
+  const pwKeyOf=btn=>pwBoxes[+btn.dataset.pi].key;
+  document.querySelectorAll('#detailBody .pw-box-edit').forEach(btn=>{
+    btn.onclick=()=>{const pi=btn.dataset.pi,row=document.getElementById('pwEditRow_'+pi);row.style.display=row.style.display==='none'?'flex':'none';if(row.style.display==='flex')document.getElementById('pwInput_'+pi).focus();};
+  });
+  document.querySelectorAll('#detailBody .pw-box-save').forEach(btn=>{
     btn.onclick=()=>{
-      const ex=getExtra(pwKey);if(!ex.passwords)return;
-      ex.passwords.splice(+btn.dataset.idx,1);setExtra(pwKey,ex);openDetail(ri,y,m,d);
+      const val=document.getElementById('pwInput_'+btn.dataset.pi).value.trim();if(!val)return;
+      const key=pwKeyOf(btn),ex=getExtra(key);if(!ex.passwords)ex.passwords=[];
+      ex.passwords.unshift({pw:val,date:nowStr()});if(ex.passwords.length>10)ex.passwords=ex.passwords.slice(0,10);
+      setExtra(key,ex);showToast('비밀번호 저장됨 🔑');openDetail(ri,y,m,d);
     };
   });
-  document.getElementById('pwInput').onkeydown=e=>{if(e.key==='Enter')document.getElementById('pwSaveBtn').click();};
+  // 삭제 — 청소앱과 같다: 지금 번호를 지우면 바로 전 번호가 지금 번호로 올라온다
+  document.querySelectorAll('#detailBody .pw-box-del').forEach(btn=>{
+    btn.onclick=()=>{
+      const key=pwKeyOf(btn),ex=getExtra(key);if(!ex.passwords||!ex.passwords.length)return;
+      ex.passwords.shift();setExtra(key,ex);showToast('비밀번호 삭제됨');openDetail(ri,y,m,d);
+    };
+  });
+  document.querySelectorAll('#detailBody .pw-hist-del').forEach(btn=>{
+    btn.onclick=()=>{
+      const key=pwKeyOf(btn),ex=getExtra(key);if(!ex.passwords)return;
+      ex.passwords.splice(+btn.dataset.idx,1);setExtra(key,ex);openDetail(ri,y,m,d);
+    };
+  });
+  document.querySelectorAll('#detailBody .pw-input').forEach(inp=>{
+    inp.onkeydown=e=>{if(e.key==='Enter')document.querySelector(`#detailBody .pw-box-save[data-pi="${inp.dataset.pi}"]`).click();};
+  });
   const memoKeyOf=btn=>memoKeys[+btn.dataset.ki], memoEntryOf=btn=>memoEntries[+btn.dataset.ki];
   const afterMemoChange=btn=>{ const e=memoEntryOf(btn); if(e) syncMemoIndex(memoKeyOf(btn),e,r.name); };
   document.querySelectorAll('#detailBody .memo-add-btn').forEach(btn=>{
