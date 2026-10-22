@@ -290,6 +290,12 @@ thead { position: sticky; top: 0; z-index: 10; }
 .bk-info-value { font-family: 'DM Mono', monospace; color: var(--text); }
 .bk-info-value.highlight { color: var(--navy); font-size: 15px; font-weight: 600; }
 .no-bk { font-size: 13px; color: var(--text3); text-align: center; padding: 18px 0; }
+/* 꾹 누르기 비밀번호 말풍선 */
+.pw-bubble { position: fixed; z-index: 300; pointer-events: none; background: var(--surface); border: 1px solid rgba(30,58,138,0.35); border-radius: 12px; padding: 8px 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+.pw-bubble-row { display: flex; align-items: center; gap: 8px; line-height: 1.5; }
+.pw-bubble-row b { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 600; color: var(--navy); letter-spacing: 0.15em; }
+.pw-bubble-lbl { font-size: 11px; font-weight: 600; color: var(--text3); min-width: 24px; }
+.pw-bubble-none, .pw-bubble-wait { font-size: 13px; color: var(--text3); }
 /* 청소 인력 (cleaner-link) */
 .st-row { border: 1px solid var(--border); border-radius: var(--r); padding: 12px; margin-bottom: 8px; background: var(--surface); }
 .st-name { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -1774,6 +1780,40 @@ function goToDate(dateStr){
 }
 
 // ── DETAIL ──
+// ── 꾹 누르기 비밀번호 말풍선 (2026-10-22) ──
+// 모바일에서 칸을 꾹 누르면 그 칸 위에 비밀번호가 뜨고 손을 떼면 사라진다. 어떤 번호를 보여줄지는 상세 창과 같은 규칙(pwTargets)
+// 손 입력 번호가 먼저, 없으면 에어비앤비 전화 끝 4자리(ph). 교대 날엔 아웃·인 두 줄
+let _pwBubbleSeq=0;
+function hidePwBubble(){ _pwBubbleSeq++; const b=document.getElementById('pwBubble'); if(b) b.remove(); }
+async function showPwBubble(ri,y,m,d,x,yPos){
+  hidePwBubble();
+  const r=rooms[+ri]; if(!r) return;
+  const allBks=cellBookings(r,y,m,d);
+  if(!allBks.length) return;   // 빈 칸은 말풍선 없음
+  const boxes=pwTargets(r,allBks,y,m,d,drawerKey(r.name,allBks[0]));
+  const seq=_pwBubbleSeq;
+  const el=document.createElement('div');
+  el.id='pwBubble'; el.className='pw-bubble';
+  el.innerHTML='<span class="pw-bubble-wait">…</span>';
+  document.body.appendChild(el);
+  const place=()=>{   // 손가락 위쪽, 화면 밖으로 안 나가게
+    const w=el.offsetWidth, h=el.offsetHeight;
+    el.style.left=Math.max(8,Math.min(window.innerWidth-w-8,x-w/2))+'px';
+    el.style.top=Math.max(8,yPos-h-28)+'px';
+  };
+  place();
+  const extras=await Promise.all(boxes.map(b=>loadExtra(b.key)));
+  if(seq!==_pwBubbleSeq) return;   // 그사이 손을 뗐다
+  const two=boxes.length>1;
+  el.innerHTML=boxes.map((b,i)=>{
+    const pws=(extras[i]&&extras[i].passwords)||[];
+    const pw=pws.length?pws[0].pw:(b.bk&&b.bk.ph)||'';
+    const lbl=two?`<span class="pw-bubble-lbl">${i?'인':'아웃'}</span>`:'';
+    return `<div class="pw-bubble-row">${lbl}${pw?`<b>${pw}</b>`:'<span class="pw-bubble-none">비밀번호 없음</span>'}</div>`;
+  }).join('');
+  place();
+}
+
 function attachCellClicks(){
   // 날짜 헤더(th) hover (PC)
   document.querySelectorAll('.day-th[data-y]').forEach(th=>{
@@ -1798,20 +1838,24 @@ function attachCellClicks(){
     cell.addEventListener('touchstart',e=>{
       _isLongPress=false;
       const y=+cell.dataset.y,m=+cell.dataset.m,d=+cell.dataset.d;
+      const tp=e.touches[0], tx=tp.clientX, ty=tp.clientY;
       _lpTimer=setTimeout(()=>{
         _isLongPress=true;
         if(!isNaN(y)&&!isNaN(m)&&!isNaN(d)){
           hoverBanner(y,m,d);
+          showPwBubble(cell.dataset.ri,y,m,d,tx,ty);   // 그 칸 손님 비밀번호 말풍선
           if(navigator.vibrate) navigator.vibrate(30);
         }
       },400);
     },{passive:true});
     cell.addEventListener('touchend',()=>{
       clearTimeout(_lpTimer);
-      if(_isLongPress) leaveBanner();
+      if(_isLongPress){ leaveBanner(); hidePwBubble(); }
     },{passive:true});
+    cell.addEventListener('touchcancel',()=>{ clearTimeout(_lpTimer); hidePwBubble(); },{passive:true});
     cell.addEventListener('touchmove',e=>{
       if(!_isLongPress){clearTimeout(_lpTimer);return;}
+      hidePwBubble();   // 밀어서 날짜를 훑기 시작하면 말풍선은 닫는다
       // 롱프레스 중 드래그 → 손가락 위치 셀 감지
       const touch=e.touches[0];
       const el=document.elementFromPoint(touch.clientX,touch.clientY);
@@ -1839,14 +1883,28 @@ function findAllIn(bookings,y,m,d){
   return bookings.filter(bk=>cur>=new Date(bk.cinY,bk.cinM,bk.cinD)&&cur<=new Date(bk.coutY,bk.coutM,bk.coutD));
 }
 
+// 그 칸(호실·날짜)에 걸린 예약 전부 — 상세 창과 꾹 누르기 말풍선이 같이 쓴다
+function cellBookings(r,y,m,d){
+  return [
+    ...findAllIn(r.bookings||[],y,m,d).map(b=>({...b,platform:'airbnb'})),
+    ...findAllIn(r.abBlocks||[],y,m,d).map(b=>({...b,platform:'ab-block'})),
+    ...findAllIn(r.bkBookings||[],y,m,d).map(b=>({...b,platform:'booking'})),
+    ...findAllIn(r.trBookings||[],y,m,d).map(b=>({...b,platform:'trip'})),
+    ...findAllIn(r.lvBookings||[],y,m,d).map(b=>({...b,platform:'lv'})),
+  ];
+}
+// 비번 상자 (airbnb-auto-pw) — 교대 날(나가는 예약·들어오는 예약의 서랍이 다름)엔 두 상자, 그 밖엔 한 상자(oneKey)
+function pwTargets(r,allBks,y,m,d,oneKey){
+  const outBk=allBks.find(b=>b.coutY===y&&b.coutM===m&&b.coutD===d);
+  const inBk=allBks.find(b=>b.cinY===y&&b.cinM===m&&b.cinD===d);
+  return outBk&&inBk&&drawerKey(r.name,outBk)!==drawerKey(r.name,inBk)
+    ?[{key:drawerKey(r.name,outBk),bk:outBk,who:'나가는 손님'},{key:drawerKey(r.name,inBk),bk:inBk,who:'들어오는 손님'}]
+    :[{key:oneKey,bk:allBks[0]||null,who:''}];
+}
+
 async function openDetail(ri,y,m,d){
   const r=rooms[ri];
-  const abBks=findAllIn(r.bookings||[],y,m,d).map(b=>({...b,platform:'airbnb'}));
-  const abBlkBks=findAllIn(r.abBlocks||[],y,m,d).map(b=>({...b,platform:'ab-block'}));
-  const bkBks=findAllIn(r.bkBookings||[],y,m,d).map(b=>({...b,platform:'booking'}));
-  const trBks=findAllIn(r.trBookings||[],y,m,d).map(b=>({...b,platform:'trip'}));
-  const lvBks=findAllIn(r.lvBookings||[],y,m,d).map(b=>({...b,platform:'lv'}));
-  const allBks=[...abBks,...abBlkBks,...bkBks,...trBks,...lvBks];
+  const allBks=cellBookings(r,y,m,d);
   const pLabel={airbnb:'✈ Airbnb','ab-block':'🚫 Airbnb 블락 (취소잔여)',booking:'🏨 Booking.com',trip:'🌐 Trip.com',lv:'🏡 리브애니웨어'};
   const pColor={airbnb:'var(--ab-out)','ab-block':'#6b7280',booking:'var(--bk-out)',trip:'var(--tr-out)',lv:'var(--lv-out)'};
   const badge=`<span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px;background:var(--navy-light);color:var(--navy);border:1px solid rgba(30,58,138,0.2);">${r.name}</span>`;
@@ -1952,13 +2010,8 @@ async function openDetail(ri,y,m,d){
     :[`${r.name}|${dateStr(y,m,d)}`];   // 예약 없는 날 — 예전처럼 날짜 서랍 (목록·📝 없음)
   const firstBk=allBks[0];
   const pwKey=firstBk?drawerKey(r.name,firstBk):blkEntry?drawerKey(r.name,blkEntry):memoKeys[0];
-  // 비번 상자 (airbnb-auto-pw) — 교대 날(나가는 예약·들어오는 예약의 서랍이 다름)엔 두 상자를 같은 크기로.
-  // 그 밖의 날은 지금처럼 한 상자(첫 예약 서랍). 에어비앤비 예약은 손 입력이 없으면 전화 끝 4자리(ph)를 보여준다
-  const outBk=allBks.find(b=>b.coutY===y&&b.coutM===m&&b.coutD===d);
-  const inBk=allBks.find(b=>b.cinY===y&&b.cinM===m&&b.cinD===d);
-  const pwBoxes=outBk&&inBk&&drawerKey(r.name,outBk)!==drawerKey(r.name,inBk)
-    ?[{key:drawerKey(r.name,outBk),bk:outBk,who:'나가는 손님'},{key:drawerKey(r.name,inBk),bk:inBk,who:'들어오는 손님'}]
-    :[{key:pwKey,bk:firstBk||null,who:''}];
+  // 교대 날엔 두 상자를 같은 크기로. 에어비앤비 예약은 손 입력이 없으면 전화 끝 4자리(ph)를 보여준다
+  const pwBoxes=pwTargets(r,allBks,y,m,d,pwKey);
   await Promise.all([...new Set([pwKey,...pwBoxes.map(b=>b.key),...memoKeys])].map(k=>loadExtra(k)));
   let pwHtml=`<div class="d-section-title" style="margin-top:4px;">🔑 도어락 비밀번호</div>`;
   pwBoxes.forEach((bx,pi)=>{
