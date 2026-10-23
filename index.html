@@ -291,11 +291,14 @@ thead { position: sticky; top: 0; z-index: 10; }
 .bk-info-value.highlight { color: var(--navy); font-size: 15px; font-weight: 600; }
 .no-bk { font-size: 13px; color: var(--text3); text-align: center; padding: 18px 0; }
 /* 꾹 누르기 비밀번호 말풍선 */
-.pw-bubble { position: fixed; z-index: 300; pointer-events: none; background: var(--surface); border: 1px solid rgba(30,58,138,0.35); border-radius: 12px; padding: 8px 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+.pw-bubble { position: fixed; z-index: 300; pointer-events: none; max-width: min(300px, calc(100vw - 16px)); background: var(--surface); border: 1px solid rgba(30,58,138,0.35); border-radius: 12px; padding: 8px 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
 .pw-bubble-row { display: flex; align-items: center; gap: 8px; line-height: 1.5; }
 .pw-bubble-row b { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 600; color: var(--navy); letter-spacing: 0.15em; }
 .pw-bubble-lbl { font-size: 11px; font-weight: 600; color: var(--text3); min-width: 24px; }
 .pw-bubble-none, .pw-bubble-wait { font-size: 13px; color: var(--text3); }
+.pw-bubble-head { font-size: 12px; font-weight: 600; color: var(--text2); padding-bottom: 4px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.pw-bubble-sec + .pw-bubble-sec { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.pw-bubble-memo { font-size: 12px; color: var(--text2); line-height: 1.4; margin-top: 2px; word-break: break-all; }
 /* 청소 인력 (cleaner-link) */
 .st-row { border: 1px solid var(--border); border-radius: var(--r); padding: 12px; margin-bottom: 8px; background: var(--surface); }
 .st-name { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -1783,18 +1786,25 @@ function goToDate(dateStr){
 // ── 꾹 누르기 비밀번호 말풍선 (2026-10-22) ──
 // 모바일에서 칸을 꾹 누르면 그 칸 위에 비밀번호가 뜨고 손을 떼면 사라진다. 어떤 번호를 보여줄지는 상세 창과 같은 규칙(pwTargets)
 // 손 입력 번호가 먼저, 없으면 에어비앤비 전화 끝 4자리(ph). 교대 날엔 아웃·인 두 줄
+// 맨 위에 호실·날짜, 서랍마다 메모 3개까지. 수동 블락 칸도 블락 서랍의 번호·메모를 보여준다 (10/24)
 let _pwBubbleSeq=0;
 function hidePwBubble(){ _pwBubbleSeq++; const b=document.getElementById('pwBubble'); if(b) b.remove(); }
 async function showPwBubble(ri,y,m,d,x,yPos){
   hidePwBubble();
   const r=rooms[+ri]; if(!r) return;
   const allBks=cellBookings(r,y,m,d);
-  if(!allBks.length) return;   // 빈 칸은 말풍선 없음
-  const boxes=pwTargets(r,allBks,y,m,d,drawerKey(r.name,allBks[0]));
+  const {manualBl,blkEntry}=manualBlockAt(r,y,m,d);
+  if(!allBks.length&&!blkEntry) return;   // 예약도 블락도 없는 칸은 말풍선 없음
+  // 서랍 고르기는 상세 창과 같다 — 예약이 있으면 예약(교대 날엔 아웃·인), 없으면 블락 서랍
+  const oneKey=allBks.length?drawerKey(r.name,allBks[0]):drawerKey(r.name,blkEntry);
+  const sections=pwTargets(r,allBks,y,m,d,oneKey).map((b,i,arr)=>({...b,lbl:arr.length>1?(i?'인':'아웃'):(allBks.length?'':`🔒 블락${manualBl.reason?' · '+manualBl.reason:''}`)}));
+  // 예약 위에 블락이 겹쳐 있으면 블락 서랍도 한 칸 더 (블락에 적어 둔 번호·메모)
+  if(blkEntry&&allBks.length){ const k=drawerKey(r.name,blkEntry); if(!sections.some(s=>s.key===k)) sections.push({key:k,bk:blkEntry,lbl:`🔒 블락${manualBl.reason?' · '+manualBl.reason:''}`}); }
   const seq=_pwBubbleSeq;
   const el=document.createElement('div');
   el.id='pwBubble'; el.className='pw-bubble';
-  el.innerHTML='<span class="pw-bubble-wait">…</span>';
+  const head=`<div class="pw-bubble-head">${stEsc(r.name)} · ${m+1}/${d}</div>`;   // 어느 칸을 눌렀는지
+  el.innerHTML=head+'<span class="pw-bubble-wait">…</span>';
   document.body.appendChild(el);
   const place=()=>{   // 손가락 위쪽, 화면 밖으로 안 나가게
     const w=el.offsetWidth, h=el.offsetHeight;
@@ -1802,14 +1812,16 @@ async function showPwBubble(ri,y,m,d,x,yPos){
     el.style.top=Math.max(8,yPos-h-28)+'px';
   };
   place();
-  const extras=await Promise.all(boxes.map(b=>loadExtra(b.key)));
+  const extras=await Promise.all(sections.map(s=>loadExtra(s.key)));
   if(seq!==_pwBubbleSeq) return;   // 그사이 손을 뗐다
-  const two=boxes.length>1;
-  el.innerHTML=boxes.map((b,i)=>{
-    const pws=(extras[i]&&extras[i].passwords)||[];
-    const pw=pws.length?pws[0].pw:(b.bk&&b.bk.ph)||'';
-    const lbl=two?`<span class="pw-bubble-lbl">${i?'인':'아웃'}</span>`:'';
-    return `<div class="pw-bubble-row">${lbl}${pw?`<b>${pw}</b>`:'<span class="pw-bubble-none">비밀번호 없음</span>'}</div>`;
+  el.innerHTML=head+sections.map((s,i)=>{
+    const ex=extras[i]||{};
+    const pws=ex.passwords||[], memos=ex.memos||[];
+    const pw=pws.length?pws[0].pw:(s.bk&&s.bk.ph)||'';
+    const memoHtml=memos.slice(0,3).map(mm=>`<div class="pw-bubble-memo">📝 ${stEsc(String(mm.text||'').slice(0,60))}${String(mm.text||'').length>60?'…':''}</div>`).join('')
+      +(memos.length>3?`<div class="pw-bubble-memo">외 ${memos.length-3}개</div>`:'');
+    return `<div class="pw-bubble-sec">${s.lbl?`<div class="pw-bubble-lbl">${stEsc(s.lbl)}</div>`:''}
+      <div class="pw-bubble-row">${pw?`<b>${stEsc(pw)}</b>`:'<span class="pw-bubble-none">비밀번호 없음</span>'}</div>${memoHtml}</div>`;
   }).join('');
   place();
 }
@@ -1893,6 +1905,14 @@ function cellBookings(r,y,m,d){
     ...findAllIn(r.lvBookings||[],y,m,d).map(b=>({...b,platform:'lv'})),
   ];
 }
+// 그 칸의 수동 블락 — 블락은 끝날을 포함하므로 퇴실 자리(cout)는 끝날 다음날
+function manualBlockAt(r,y,m,d){
+  const cur=new Date(y,m,d);
+  const manualBl=manualBlocks.find(b=>b.roomName===r.name&&cur>=new Date(b.startY,b.startM,b.startD)&&cur<=new Date(b.endY,b.endM,b.endD));
+  if(!manualBl) return {manualBl:null,blkEntry:null};
+  const e=new Date(manualBl.endY,manualBl.endM,manualBl.endD+1);
+  return {manualBl,blkEntry:{platform:'block',cinY:manualBl.startY,cinM:manualBl.startM,cinD:manualBl.startD,coutY:e.getFullYear(),coutM:e.getMonth(),coutD:e.getDate()}};
+}
 // 비번 상자 (airbnb-auto-pw) — 교대 날(나가는 예약·들어오는 예약의 서랍이 다름)엔 두 상자, 그 밖엔 한 상자(oneKey)
 function pwTargets(r,allBks,y,m,d,oneKey){
   const outBk=allBks.find(b=>b.coutY===y&&b.coutM===m&&b.coutD===d);
@@ -1911,7 +1931,7 @@ async function openDetail(ri,y,m,d){
   document.getElementById('detailTitle').innerHTML=badge+dateStr(y,m,d);
   let obHtml='';
   if(isOverbooking(r,d,y,m)) obHtml=`<div class="ob-warning">⚠️ 오버부킹 가능성! ${allBks.length}개 플랫폼 예약 중복</div>`;
-  const manualBl=manualBlocks.find(b=>{if(b.roomName!==r.name)return false;const cur=new Date(y,m,d);return cur>=new Date(b.startY,b.startM,b.startD)&&cur<=new Date(b.endY,b.endM,b.endD);});
+  const {manualBl,blkEntry}=manualBlockAt(r,y,m,d);
   let bkHtml=`<div class="d-section-title">예약 정보</div>`;
   if(!allBks.length){
     bkHtml+=`<div class="no-bk">예약 없음</div>`;
@@ -2000,8 +2020,6 @@ async function openDetail(ri,y,m,d){
       </div>`;
   }
   // 메모는 손님(예약)마다 따로 — 나가는 손님, 머무는 손님, 들어오는 손님 순
-  const blkEntry=manualBl?(()=>{const e=new Date(manualBl.endY,manualBl.endM,manualBl.endD+1);
-    return{platform:'block',cinY:manualBl.startY,cinM:manualBl.startM,cinD:manualBl.startD,coutY:e.getFullYear(),coutM:e.getMonth(),coutD:e.getDate()};})():null;
   const roleOf=e=>(e.coutY===y&&e.coutM===m&&e.coutD===d)?0:(e.cinY===y&&e.cinM===m&&e.cinD===d)?2:1;
   const memoEntries=[...allBks,...(blkEntry?[blkEntry]:[])].sort((a,b)=>roleOf(a)-roleOf(b))
     .filter((e,i,arr)=>arr.findIndex(o=>drawerKey(r.name,o)===drawerKey(r.name,e))===i);   // 같은 서랍은 한 번만
