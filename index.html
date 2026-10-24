@@ -291,14 +291,14 @@ thead { position: sticky; top: 0; z-index: 10; }
 .bk-info-value.highlight { color: var(--navy); font-size: 15px; font-weight: 600; }
 .no-bk { font-size: 13px; color: var(--text3); text-align: center; padding: 18px 0; }
 /* 꾹 누르기 비밀번호 말풍선 */
-.pw-bubble { position: fixed; z-index: 300; pointer-events: none; max-width: min(300px, calc(100vw - 16px)); background: var(--surface); border: 1px solid rgba(30,58,138,0.35); border-radius: 12px; padding: 8px 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
-.pw-bubble-row { display: flex; align-items: center; gap: 8px; line-height: 1.5; }
-.pw-bubble-row b { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 600; color: var(--navy); letter-spacing: 0.15em; }
-.pw-bubble-lbl { font-size: 11px; font-weight: 600; color: var(--text3); min-width: 24px; }
-.pw-bubble-none, .pw-bubble-wait { font-size: 13px; color: var(--text3); }
-.pw-bubble-head { font-size: 12px; font-weight: 600; color: var(--text2); padding-bottom: 4px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
-.pw-bubble-sec + .pw-bubble-sec { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
-.pw-bubble-memo { font-size: 12px; color: var(--text2); line-height: 1.4; margin-top: 2px; word-break: break-all; }
+.pw-bubble { position: fixed; z-index: 300; pointer-events: none; left: 16px; right: 16px; max-width: 420px; margin: 0 auto; background: var(--surface); border: 2px solid rgba(30,58,138,0.45); border-radius: 16px; padding: 14px 18px; box-shadow: 0 8px 28px rgba(0,0,0,0.25); }
+.pw-bubble-row { display: flex; align-items: center; gap: 12px; line-height: 1.3; }
+.pw-bubble-row b { font-family: 'DM Mono', monospace; font-size: 36px; font-weight: 700; color: var(--navy); letter-spacing: 0.12em; }
+.pw-bubble-lbl { font-size: 15px; font-weight: 700; color: var(--text2); min-width: 34px; }
+.pw-bubble-none, .pw-bubble-wait { font-size: 17px; color: var(--text3); }
+.pw-bubble-head { font-size: 17px; font-weight: 700; color: var(--text); padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
+.pw-bubble-sec + .pw-bubble-sec { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border2); }
+.pw-bubble-memo { font-size: 16px; color: var(--text); line-height: 1.45; margin-top: 4px; word-break: break-all; }
 /* 청소 인력 (cleaner-link) */
 .st-row { border: 1px solid var(--border); border-radius: var(--r); padding: 12px; margin-bottom: 8px; background: var(--surface); }
 .st-name { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -1807,10 +1807,9 @@ async function showPwBubble(ri,y,m,d,x,yPos){
   const head=`<div class="pw-bubble-head">${stEsc(r.name)} · ${m+1}/${d}</div>`;   // 어느 칸을 눌렀는지
   el.innerHTML=head+'<span class="pw-bubble-wait">…</span>';
   document.body.appendChild(el);
-  const place=()=>{   // 손가락 위쪽, 화면 밖으로 안 나가게
-    const w=el.offsetWidth, h=el.offsetHeight;
-    el.style.left=Math.max(8,Math.min(window.innerWidth-w-8,x-w/2))+'px';
-    el.style.top=Math.max(8,yPos-h-28)+'px';
+  const place=()=>{   // 손가락·손에 안 가리게 — 화면 아래쪽을 누르면 위쪽에, 위쪽을 누르면 아래쪽에 크게 (10/24)
+    const h=el.offsetHeight;
+    el.style.top=(yPos>window.innerHeight*0.45?Math.max(12,Math.min(110,yPos-h-60)):Math.max(yPos+60,window.innerHeight-h-90))+'px';
   };
   place();
   const extras=await Promise.all(sections.map(s=>loadExtra(s.key)));
