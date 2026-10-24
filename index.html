@@ -1787,10 +1787,11 @@ function goToDate(dateStr){
 // 모바일에서 칸을 꾹 누르면 그 칸 위에 비밀번호가 뜨고 손을 떼면 사라진다. 어떤 번호를 보여줄지는 상세 창과 같은 규칙(pwTargets)
 // 손 입력 번호가 먼저, 없으면 에어비앤비 전화 끝 4자리(ph). 교대 날엔 아웃·인 두 줄
 // 맨 위에 호실·날짜, 서랍마다 메모 3개까지. 수동 블락 칸도 블락 서랍의 번호·메모를 보여준다 (10/24)
-let _pwBubbleSeq=0;
-function hidePwBubble(){ _pwBubbleSeq++; const b=document.getElementById('pwBubble'); if(b) b.remove(); }
+let _pwBubbleSeq=0, _pwBubbleAt='';   // _pwBubbleAt = 지금 말풍선이 가리키는 칸 (호실|년|월|일)
+function hidePwBubble(){ _pwBubbleSeq++; _pwBubbleAt=''; const b=document.getElementById('pwBubble'); if(b) b.remove(); }
 async function showPwBubble(ri,y,m,d,x,yPos){
   hidePwBubble();
+  _pwBubbleAt=`${ri}|${y}|${m}|${d}`;
   const r=rooms[+ri]; if(!r) return;
   const allBks=cellBookings(r,y,m,d);
   const {manualBl,blkEntry}=manualBlockAt(r,y,m,d);
@@ -1864,19 +1865,25 @@ function attachCellClicks(){
       clearTimeout(_lpTimer);
       if(_isLongPress){ leaveBanner(); hidePwBubble(); }
     },{passive:true});
-    cell.addEventListener('touchcancel',()=>{ clearTimeout(_lpTimer); hidePwBubble(); },{passive:true});
+    cell.addEventListener('touchcancel',()=>{ clearTimeout(_lpTimer); if(_isLongPress){ leaveBanner(); hidePwBubble(); } },{passive:true});
     cell.addEventListener('touchmove',e=>{
       if(!_isLongPress){clearTimeout(_lpTimer);return;}
-      hidePwBubble();   // 밀어서 날짜를 훑기 시작하면 말풍선은 닫는다
+      // 꾹 누른 뒤엔 손 뗄 때까지 화면이 스크롤되지 않게 잡는다 — 스크롤이 시작되면 휴대폰이 터치를 취소해 말풍선이 먼저 사라진다 (10/24)
+      if(e.cancelable) e.preventDefault();
       // 롱프레스 중 드래그 → 손가락 위치 셀 감지
       const touch=e.touches[0];
       const el=document.elementFromPoint(touch.clientX,touch.clientY);
       const target=el&&(el.closest('.day-cell')||el.closest('.day-th[data-y]'));
       if(target&&target.dataset.y){
         const ty=+target.dataset.y,tm=+target.dataset.m,td=+target.dataset.d;
-        if(!isNaN(ty)&&!isNaN(tm)&&!isNaN(td)) hoverBanner(ty,tm,td);
+        if(!isNaN(ty)&&!isNaN(tm)&&!isNaN(td)){
+          hoverBanner(ty,tm,td);
+          // 말풍선은 손가락이 다른 호실 칸으로 옮겨 갔을 때만 그 칸 것으로 바꾼다 (같은 칸 안의 떨림은 무시)
+          const k=`${target.dataset.ri}|${ty}|${tm}|${td}`;
+          if(target.dataset.ri!==undefined&&k!==_pwBubbleAt) showPwBubble(target.dataset.ri,ty,tm,td,touch.clientX,touch.clientY);
+        }
       }
-    },{passive:true});
+    },{passive:false});
 
     // 클릭 (PC탭 + 모바일 짧은탭)
     cell.addEventListener('click',e=>{
