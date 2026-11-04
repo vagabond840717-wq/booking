@@ -212,8 +212,8 @@ thead { position: sticky; top: 0; z-index: 10; }
 .c-dual.dual-solo { justify-content: center; gap: 1px; }
 .d1-ab{--d1:#b85c00}.d1-bk{--d1:#1a3f7a}.d1-tr{--d1:#4a1278}.d1-lv{--d1:#0a6e8a}.d1-blk{--d1:#6b7280}.d1-bl{--d1:#2d333d}
 .d2-ab{--d2:#b85c00}.d2-bk{--d2:#1a3f7a}.d2-tr{--d2:#4a1278}.d2-lv{--d2:#0a6e8a}.d2-blk{--d2:#6b7280}.d2-bl{--d2:#2d333d}
-/* 오늘 링: 밝은 하늘색으로 잘 보이게 */
-.today-ring .cell-inner { outline: 2px solid #38bdf8; outline-offset: -2px; border-radius: 5px; }
+/* 오늘 링: 노란 점선 — 손으로 고른 칸(하늘색 실선 .col-hover)과 헷갈리지 않게 색·모양 둘 다 다르게 */
+.today-ring .cell-inner { outline: 2px dashed #facc15; outline-offset: -2px; border-radius: 5px; }
 .cal-row { border-bottom: 1px solid var(--border); }
 
 .week-block { margin-bottom: 20px; }
@@ -237,7 +237,8 @@ thead { position: sticky; top: 0; z-index: 10; }
 }
 .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text3); pointer-events: none; }
 .legend-box { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-.legend-today { width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--navy); }
+.legend-today { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; background: #2d333d; border: 2px dashed #facc15; }
+.legend-sel { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; background: #2d333d; border: 2px solid #38bdf8; }
 .legend-sep { width: 1px; height: 12px; background: var(--border2); flex-shrink: 0; }
 
 .panel-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: none; align-items: flex-end; }
@@ -694,6 +695,7 @@ thead { position: sticky; top: 0; z-index: 10; }
   <div class="legend-item"><div class="legend-box" style="background:rgba(55,65,81,0.15);border:1px solid rgba(55,65,81,0.3);"></div>블락</div>
   <div class="legend-sep"></div>
   <div class="legend-today"></div><span style="font-size:11px;color:var(--text3);">오늘</span>
+  <div class="legend-sel"></div><span style="font-size:11px;color:var(--text3);">선택</span>
 </div>
 
 <div class="panel-overlay" id="detailPanel">
