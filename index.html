@@ -3114,11 +3114,42 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
 }
 
+// 알림 서명 열쇠는 워커가 정한다 (push-keys, 2026-11-13). 위 VAPID_PUBLIC_KEY 는 워커를 못 읽을 때만 쓰는 예전 값
+async function serverPushKey() {
+  try { const j = await (await fetch(PROXY + '/push/key')).json(); if (j && j.publicKey) return j.publicKey; } catch(e) {}
+  return VAPID_PUBLIC_KEY;
+}
+const _keyB64 = buf => buf ? btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'') : '';
+// 이미 알림을 켠 폰인데 도장(열쇠)이 바뀌었으면 조용히 다시 연결한다 — 사장님이 다시 누를 필요 없게
+async function resyncPushKey(reg) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const existing = await reg.pushManager.getSubscription();
+    if (!existing) return;
+    const key = await serverPushKey();
+    if (_keyB64(existing.options && existing.options.applicationServerKey) === key) {
+      // 같은 열쇠 — 서버 명단에서 빠졌을 수 있으니 다시 알려만 둔다 (같은 칸에 덮어씀)
+      await fetch(PROXY + '/push/subscribe', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(existing.toJSON()) }).catch(()=>{});
+      return;
+    }
+    await existing.unsubscribe().catch(()=>{});
+    await fetch(PROXY + '/push/unsubscribe', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ endpoint: existing.endpoint }) }).catch(()=>{});
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
+    await fetch(PROXY + '/push/subscribe', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(sub.toJSON()) });
+    showToast('🔔 알림을 새로 연결했어요');
+  } catch(e) {
+    console.log('알림 다시 연결 실패', e);
+    showToast('🔔 알림을 다시 켜 주세요 — 🔔 → 알림 켜기');   // 아이폰은 손으로 눌러야만 되는 경우가 있다
+    await updateNotifyBtn().catch(()=>{});
+  }
+}
+
 async function registerSW() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const reg = await navigator.serviceWorker.register('./sw.js');
     window._swReg = reg;
+    await resyncPushKey(reg);
     await updateNotifyBtn();
   } catch(e) { console.log('SW 등록 실패', e); }
 }
@@ -3173,7 +3204,7 @@ async function toggleNotify() {
   try {
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      applicationServerKey: urlBase64ToUint8Array(await serverPushKey())
     });
     const subData = sub.toJSON();
     await fetch(PROXY + '/push/subscribe', {
