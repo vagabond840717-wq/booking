@@ -836,6 +836,7 @@ let manualBlocks = [];
 let trCuts = [];            // 경계 메모: "이 호실 · 이 날짜는 손님이 바뀌는 날"
 let dragSrcIdx = null;
 let _serverUnread = 0;      // 서버 알림함의 미확인 개수 (배지 계산용)
+let holdItems = [];         // 확인 기다리는 막힘 (워커 /hold) — 사장님이 풀기 전까지 다른 채널에서 계속 막혀 있다
 
 const SPLIT_PLATFORMS = ['tr'];  // 분할 대상 플랫폼 (현재 Trip.com만)
 const TRIM_PLATFORMS  = ['bk','tr'];  // 투숙 중 앞잘림이 실측된 채널 (워커 UNTRIM_PLATFORMS 와 같다)
@@ -3201,6 +3202,55 @@ document.getElementById('notifyPanel').addEventListener('click', e => {
   if (e.target === document.getElementById('notifyPanel')) document.getElementById('notifyPanel').classList.remove('open');
 });
 
+// 확인 기다리는 막힘 (#40) — 채널 달력에서 앞날 막힘이 1시간 넘게 빠졌다. 워커는 사장님이 풀 때까지 계속 막아 둔다
+// ⛔ 풀기 = 에어비앤비·부킹·리브에서 그 밤이 팔리기 시작한다. 반드시 확인창을 거친다
+const HOLD_CH = { tr:'🌐 트립', bk:'🏨 부킹', lv:'🏡 리브' };
+function holdNightRanges(ns) {
+  const lab = n => { const d = new Date(n * 86400000); return `${d.getUTCMonth()+1}/${d.getUTCDate()}`; };
+  const out = []; let s = null, p = null;
+  for (const n of [...ns].sort((a,b)=>a-b)) {
+    if (s === null) { s = p = n; continue; }
+    if (n === p + 1) { p = n; continue; }
+    out.push(s === p ? lab(s) : `${lab(s)}~${lab(p)}`); s = p = n;
+  }
+  if (s !== null) out.push(s === p ? lab(s) : `${lab(s)}~${lab(p)}`);
+  return out.join(', ');
+}
+async function loadHolds() {
+  try {
+    const st = await (await fetch(PROXY + '/hold')).json();
+    holdItems = Object.entries(st || {}).filter(([k, v]) => v && Array.isArray(v.q) && v.q.length)
+      .map(([k, v]) => { const i = k.lastIndexOf('|'); return { key: k, room: k.slice(0, i), ch: k.slice(i + 1), n: v.q }; });
+  } catch (e) { /* 못 읽으면 직전 목록 유지 — '없다'로 해석하지 않는다 */ }
+}
+function holdCards() {
+  if (!holdItems.length) return '';
+  return holdItems.map((h, i) => `<div style="background:rgba(185,28,28,0.07);border-radius:12px;padding:12px 14px;border:1px solid rgba(185,28,28,0.45)">
+      <div style="font-weight:700;font-size:14px;color:#991b1b">🔒 ${h.room} · ${HOLD_CH[h.ch] || h.ch}</div>
+      <div style="font-size:13px;color:var(--text2);margin-top:2px">${holdNightRanges(h.n)} 막힘이 ${HOLD_CH[h.ch] || h.ch} 달력에서 1시간 넘게 빠져 있어요</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">확인 전까지 다른 채널에서 계속 막아 두는 중이에요. ${HOLD_CH[h.ch] || h.ch} 관리 화면에서 손님이 없는 걸 확인한 뒤 풀어 주세요</div>
+      <button class="hold-release-btn" data-i="${i}" style="width:100%;margin-top:8px;background:#fff;color:#991b1b;border:1px solid #991b1b;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:600;cursor:pointer">손님 없는 거 확인했어요 — 풀기</button>
+    </div>`).join('');
+}
+function bindHoldBtns() {
+  document.querySelectorAll('#notifyEventList .hold-release-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const h = holdItems[+btn.dataset.i];
+      if (!h) return;
+      const ch = HOLD_CH[h.ch] || h.ch;
+      if (!confirm(`${h.room} ${holdNightRanges(h.n)}\n\n${ch}에 이 날짜 손님이 정말 없나요?\n풀면 다른 채널에서 이 날짜가 팔리기 시작해요.`)) return;
+      btn.disabled = true; btn.textContent = '푸는 중...';
+      try {
+        const r = await fetch(PROXY + '/hold/release', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key: h.key, n: h.n }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || r.status);
+        showToast(j.released ? '풀었어요 — 다른 채널에서 팔리기 시작해요' : '아직 다른 밤이 빠져 있어 일부는 계속 막아 둬요');
+      } catch (e) { showToast('풀지 못했어요 — 계속 막아 둡니다 (' + e.message + ')'); }
+      await loadHolds(); syncNotifyBadge(); renderNotifyEvents();
+    };
+  });
+}
+
 // 확인 대기 중인 경계(⚠) 카드 — 서버 알림 위에 붙는다
 function cutAlertCards() {
   if (!cutAlerts.length) return '';
@@ -3215,6 +3265,7 @@ function cutAlertCards() {
     </div>`).join('');
 }
 function bindCutAlertBtns() {
+  bindHoldBtns();
   document.querySelectorAll('#notifyEventList .cut-alert-btn').forEach(btn => {
     btn.onclick = async () => {
       const a = cutAlerts[+btn.dataset.i];
@@ -3232,7 +3283,8 @@ function bindCutAlertBtns() {
 async function renderNotifyEvents() {
   const list = document.getElementById('notifyEventList');
   list.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">불러오는 중...</div>';
-  const alertsHtml = cutAlertCards();
+  await loadHolds();
+  const alertsHtml = holdCards() + cutAlertCards();
   try {
     const res = await fetch(PROXY + '/push/events');
     const events = await res.json();
@@ -3315,8 +3367,8 @@ function updateNotifyBadge(count) {
   }
 }
 
-// 배지 = 서버 미확인 알림 + 확인 대기 경계(⚠)
-function syncNotifyBadge() { updateNotifyBadge(_serverUnread + cutAlerts.length); }
+// 배지 = 서버 미확인 알림 + 확인 대기 경계(⚠) + 확인 기다리는 막힘(🔒)
+function syncNotifyBadge() { updateNotifyBadge(_serverUnread + cutAlerts.length + holdItems.length); }
 
 // 앱 시작 시 미확인 알림 배지 표시
 async function checkUnreadEvents() {
@@ -3325,6 +3377,7 @@ async function checkUnreadEvents() {
     const events = await res.json();
     _serverUnread = events.filter(e => !e.read).length;
   } catch(e) {}
+  await loadHolds();
   syncNotifyBadge();
 }
 
