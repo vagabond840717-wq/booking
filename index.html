@@ -1215,6 +1215,21 @@ async function syncMemoIndex(key,e,roomName){
   },true);
   if(res){ memoIndex=res; render(); attachCellClicks(); }
 }
+// 날짜 메모 (예약·블락 없는 날에 쓴 메모) — 서랍 이름 '<호실>|YYYY.MM.DD', 목록엔 ch:'day' 한 줄
+// 그날 하루에만 📝. 나중에 예약이 들어와도 그 칸을 누르면 같이 보인다 (openDetail)
+// ⚠ 워커 30일 정리가 cout(=그날) 기준으로 똑같이 지운다. 청소앱·워커 날짜이동은 'day' 를 모르니 건너뛴다
+const dayMemoKey=(roomName,y,m,d)=>`${roomName}|${dateStr(y,m,d)}`;
+async function syncDayMemoIndex(roomName,y,m,d){
+  const key=dayMemoKey(roomName,y,m,d);
+  const has=(getExtra(key).memos||[]).length>0;
+  const listed=memoIndex.some(x=>x.key===key);
+  if(has===listed) return;   // 바뀐 게 없으면 안 쓴다 (KV 한도 원칙)
+  const day=ymd8(y,m,d);
+  const res=await saveListMerged('memo_index','hana_memo_index',list=>{
+    const out=list.filter(x=>x.key!==key); if(has) out.push({key,room:roomName,ch:'day',cin:day,cout:day}); return out;
+  },true);
+  if(res){ memoIndex=res; render(); attachCellClicks(); }
+}
 // 목록 한 줄 → 지금 화면의 예약 기간. 예약이 사라졌으면 null (📝 안 뜸, 메모는 그대로)
 function memoRangesFor(room){
   if(!_memoRanges) _memoRanges={};
@@ -1222,6 +1237,7 @@ function memoRangesFor(room){
   const out=[];
   for(const row of memoIndex){
     if(row.room!==room.name) continue;
+    if(row.ch==='day'){ out.push({a:+row.cin,z:+row.cin,day:true}); continue; }
     if(row.ch==='bl'){
       const b=manualBlocks.find(b=>b.roomName===room.name&&ymd8(b.startY,b.startM,b.startD)===row.cin);
       if(b) out.push({a:+row.cin,z:+ymd8(b.endY,b.endM,b.endD),blk:true});
@@ -1241,6 +1257,7 @@ function memoBadges(room,d,y,m){
   let whole=false,out=false,inn=false;
   for(const g of memoRangesFor(room)){
     if(cur<g.a||cur>g.z) continue;
+    if(g.day){ whole=true; continue; }
     if(g.blk){ if(cur===g.a) inn=true; else whole=true; continue; }
     if(cur===g.z) out=true; else if(cur===g.a) inn=true; else whole=true;
   }
@@ -2032,14 +2049,19 @@ async function openDetail(ri,y,m,d){
   const roleOf=e=>(e.coutY===y&&e.coutM===m&&e.coutD===d)?0:(e.cinY===y&&e.cinM===m&&e.cinD===d)?2:1;
   const memoEntries=[...allBks,...(blkEntry?[blkEntry]:[])].sort((a,b)=>roleOf(a)-roleOf(b))
     .filter((e,i,arr)=>arr.findIndex(o=>drawerKey(r.name,o)===drawerKey(r.name,e))===i);   // 같은 서랍은 한 번만
+  const dayKey=dayMemoKey(r.name,y,m,d);
   const memoKeys=memoEntries.length
     ?memoEntries.map(e=>drawerKey(r.name,e))
-    :[`${r.name}|${dateStr(y,m,d)}`];   // 예약 없는 날 — 예전처럼 날짜 서랍 (목록·📝 없음)
+    :[dayKey];   // 예약 없는 날 — 날짜 서랍 (목록엔 ch:'day' 로 올려 📝 를 띄운다)
+  // 빈 날에 써 둔 메모가 있는데 그 뒤 예약·블락이 들어왔다 → 날짜 메모도 같이 보여준다 (맨 끝)
+  if(memoEntries.length&&memoIndex.some(x=>x.key===dayKey)) memoKeys.push(dayKey);
   const firstBk=allBks[0];
   const pwKey=firstBk?drawerKey(r.name,firstBk):blkEntry?drawerKey(r.name,blkEntry):memoKeys[0];
   // 교대 날엔 두 상자를 같은 크기로. 에어비앤비 예약은 손 입력이 없으면 전화 끝 4자리(ph)를 보여준다
   const pwBoxes=pwTargets(r,allBks,y,m,d,pwKey);
   await Promise.all([...new Set([pwKey,...pwBoxes.map(b=>b.key),...memoKeys])].map(k=>loadExtra(k)));
+  // 목록에 안 올라간 옛 날짜 메모 — 열어 본 김에 올린다 (바뀐 게 없으면 아무것도 안 씀)
+  if(!memoEntries.length) syncDayMemoIndex(r.name,y,m,d);
   let pwHtml=`<div class="d-section-title" style="margin-top:4px;">🔑 도어락 비밀번호</div>`;
   pwBoxes.forEach((bx,pi)=>{
     const pws=getExtra(bx.key).passwords||[];
@@ -2068,7 +2090,8 @@ async function openDetail(ri,y,m,d){
   const multiMemo=memoKeys.length>1;
   memoKeys.forEach((key,ki)=>{
     const e=memoEntries[ki];
-    const who=multiMemo&&e?`<span class="memo-who">${memoHead({},e)} · ${['나가는 손님','머무는 손님','들어오는 손님'][roleOf(e)]}</span>`:'';
+    const who=!multiMemo?'':e?`<span class="memo-who">${memoHead({},e)} · ${['나가는 손님','머무는 손님','들어오는 손님'][roleOf(e)]}</span>`
+      :`<span class="memo-who">📅 ${m+1}/${d} 날짜 메모</span>`;
     memoHtml+=`<div class="d-section-title" style="margin-top:4px;">📝 메모${who}</div>
     <div class="memo-input-row" style="margin-bottom:8px;">
       <textarea class="memo-textarea" id="memoInput_${ki}" placeholder="이 예약에 대한 메모를 입력하세요..."></textarea>
@@ -2177,7 +2200,7 @@ async function openDetail(ri,y,m,d){
     inp.onkeydown=e=>{if(e.key==='Enter')document.querySelector(`#detailBody .pw-box-save[data-pi="${inp.dataset.pi}"]`).click();};
   });
   const memoKeyOf=btn=>memoKeys[+btn.dataset.ki], memoEntryOf=btn=>memoEntries[+btn.dataset.ki];
-  const afterMemoChange=btn=>{ const e=memoEntryOf(btn); if(e) syncMemoIndex(memoKeyOf(btn),e,r.name); };
+  const afterMemoChange=btn=>{ const e=memoEntryOf(btn); if(e) syncMemoIndex(memoKeyOf(btn),e,r.name); else syncDayMemoIndex(r.name,y,m,d); };
   document.querySelectorAll('#detailBody .memo-add-btn').forEach(btn=>{
     btn.onclick=()=>{
       const ki=+btn.dataset.ki, key=memoKeys[ki], e=memoEntries[ki];
