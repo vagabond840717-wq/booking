@@ -1364,7 +1364,62 @@ function cellTypeForBlock(bookings,d,y,m){
   return 'empty';
 }
 
+// ── 오버부킹 '처리 완료' (ob-ack, 2026-11-14) ──
+// 사장님이 손님을 옮기는 등 해결한 겹침의 경고를 숨긴다. KV extra_ob_ack (공유 목록 → saveListMerged)
+// 한 줄: {room, days:[dnum...], sig:'ab:20261114-20261120|tr:~20261118', date}
+// ⛔ 경고 '표시'만 숨긴다. 예약·막힘·내보내기는 그대로 → 날짜가 열리는 일은 없다
+// ⛔ 그 방·그 날짜·그 예약 묶음(sig)이 그대로일 때만 숨긴다. 다른 예약이 끼거나 날짜가 바뀌면 경고가 다시 뜬다
+//    트립·부킹·리브는 매일 앞을 잘라 보내므로 sig 에 퇴실일만 쓴다. 에어비앤비는 입실~퇴실 전부
+let obAcks=[];
+async function loadObAcks(){
+  try{
+    const resp=await fetch(`${PROXY}/extra?key=ob_ack`);
+    if(resp.ok){ const d=await resp.json(); obAcks=Array.isArray(d)?d:[]; return; }
+  }catch(e){}
+  try{ obAcks=JSON.parse(localStorage.getItem('hana_ob_ack')||'[]'); }catch(e){ obAcks=[]; }
+}
+function obSig(room,cur){
+  const ymd=(y,m,d)=>`${y}${String(m+1).padStart(2,'0')}${String(d).padStart(2,'0')}`;
+  const lists=[['ab',room.bookings],['bk',room.bkBookings],['tr',room.trBookings],['lv',room.lvBookings]];
+  const out=[];
+  for(const [ch,arr] of lists) for(const bk of (arr||[])){
+    const cin=new Date(bk.cinY,bk.cinM,bk.cinD), cout=new Date(bk.coutY,bk.coutM,bk.coutD);
+    if(!(cur>cin&&cur<cout)) continue;
+    out.push(ch==='ab' ? `ab:${ymd(bk.cinY,bk.cinM,bk.cinD)}-${ymd(bk.coutY,bk.coutM,bk.coutD)}` : `${ch}:~${ymd(bk.coutY,bk.coutM,bk.coutD)}`);
+  }
+  return [...new Set(out)].sort().join('|');
+}
+function isObAcked(room,d,y,m){
+  if(!obAcks.length) return false;
+  const k=dnum({y,m,d}), sig=obSig(room,new Date(y,m,d));
+  return obAcks.some(a=>a.room===room.name&&a.sig===sig&&(a.days||[]).includes(k));
+}
 function isOverbooking(room,d,y,m){
+  return isOverbookingRaw(room,d,y,m)&&!isObAcked(room,d,y,m);
+}
+async function ackOverbooking(roomName){
+  const room=rooms.find(r=>r.name===roomName); if(!room) return;
+  const t=today(), groups={};
+  for(let off=0;off<60;off++){
+    const dt=new Date(t.y,t.m,t.d+off), y=dt.getFullYear(), m=dt.getMonth(), d=dt.getDate();
+    if(!isOverbooking(room,d,y,m)) continue;
+    const sig=obSig(room,dt); (groups[sig]=groups[sig]||[]).push({y,m,d});
+  }
+  const sigs=Object.keys(groups); if(!sigs.length) return;
+  const days=sigs.flatMap(s=>groups[s]);
+  const label=`${dateStr(days[0].y,days[0].m,days[0].d)}${days.length>1?' ~ '+dateStr(days[days.length-1].y,days[days.length-1].m,days[days.length-1].d):''}`;
+  if(!confirm(`${roomName} ${label} 겹침을 처리 완료로 표시할까요?\n\n경고만 숨겨지고, ${roomName} 날짜는 그대로 막혀 있어요.\n다른 예약이 새로 겹치거나 날짜가 바뀌면 경고가 다시 떠요.`)) return;
+  const now=new Date(), stamp=`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const adds=sigs.map(s=>({room:roomName,sig:s,days:groups[s].map(dnum),date:stamp}));
+  const merged=await saveListMerged('ob_ack','hana_ob_ack',list=>{
+    const tk=dnum(today());
+    list=list.filter(a=>(a.days||[]).some(k=>k>=tk));   // 다 지난 표시는 정리
+    return list.concat(adds);
+  },true);
+  if(!merged) return;
+  obAcks=merged; render(); checkOverbooking(); showToast('처리 완료로 표시했어요 ✔');
+}
+function isOverbookingRaw(room,d,y,m){
   const cur=new Date(y,m,d);
   // 지난 날짜는 아카이브에 취소·변경된 옛 예약이 남아 실제 예약과 겹쳐 보이므로 판정 제외
   const t=today();
@@ -1565,7 +1620,7 @@ function checkOverbooking(){
   }
   const el=document.getElementById('obAlerts');
   if(!alerts.length){el.innerHTML='';return;}
-  el.innerHTML=alerts.slice(0,5).map(a=>`<div class="ob-alert" onclick="goToDate('${a.date}')" style="cursor:pointer;"><div class="ob-alert-text">⚠️ 오버부킹 가능성: <strong>${a.room}</strong> ${a.date} <span style="font-size:10px;opacity:0.7;">→ 클릭해서 이동</span></div></div>`).join('');
+  el.innerHTML=alerts.slice(0,5).map(a=>`<div class="ob-alert" onclick="goToDate('${a.date}')" style="cursor:pointer;align-items:center;"><div class="ob-alert-text" style="flex:1">⚠️ 오버부킹 가능성: <strong>${a.room}</strong> ${a.date} <span style="font-size:10px;opacity:0.7;">→ 클릭해서 이동</span></div><button onclick="event.stopPropagation();ackOverbooking(${JSON.stringify(a.room).replace(/"/g,'&quot;')})" style="flex:none;font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--ob-color);background:#fff;color:var(--ob-color);cursor:pointer;white-space:nowrap">처리했어요</button></div>`).join('');
 }
 
 // ── RENDER ──
@@ -3108,6 +3163,7 @@ document.getElementById('addRoomBtn').onclick=()=>{
 async function init(){
   const t=today();curY=t.y;curM=t.m;
   await loadBlocks();
+  await loadObAcks();
   await loadCuts();
   await loadFeedPrev();
   await loadRooms();
